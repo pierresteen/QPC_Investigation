@@ -540,65 +540,78 @@ function system_solve(μ, V, N, L, i, opt)
 	end
 	
 	# extract eigenvectors & eigenvalues from T::T_data.self
-	λ_vec = eigvecs(T(μ, N).self)
-	λ_val = eigvals(T(μ, N).self)
+	λ = eigen(T(μ, N).self, sortby=nothing)
 	
-	return λ_vec, λ_val
+	λ_vals = round.(λ.values, digits=11) 	 # round eigenvalues to 10 decimal places
+	λ_vecs = round.(λ.vectors, digits=11) # ""	  eigenvectors ""
 	
-# 	λ_valr = round.(λ_val, digits=10) # round eigenvalues to 10 decimal places
+	return λ_vals, λ_vecs
 	
-# 	# extract indices from:
-# 	# 	forward & backward propagating waves
-# 	# 	evanescent growing & decaying waves
-# 	Rᵢ = pickoutᵢ(λ_valr, "R")
-# 	Lᵢ = pickoutᵢ(λ_valr, "L")
-# 	Eᵢ = pickoutᵢ(λ_valr, "E")
+	# extract indices from:
+	# 	forward & backward propagating waves
+	# 	evanescent growing & decaying waves
+	Rᵢ = pickoutᵢ(λ_vals, "R")
+	Lᵢ = pickoutᵢ(λ_vals, "L")
+	Eᵢ = pickoutᵢ(λ_vals, "E")
 	
-# 	# index evanescent waves which are growing: $Gᵢ or decaying: $Dᵢ
-# 	Gᵢ = pickoutᵢ(λ_valr[Eᵢ], "G")
-# 	Dᵢ = pickoutᵢ(λ_valr[Eᵢ], "D")
+	# index evanescent waves which are growing: $Gᵢ or decaying: $Dᵢ
+	Gᵢ = pickoutᵢ(λ_vals[Eᵢ], "G")
+	Dᵢ = pickoutᵢ(λ_vals[Eᵢ], "D")
 	
-# 	return Rᵢ, Lᵢ, Eᵢ, Gᵢ, Dᵢ
+	#return Rᵢ, Lᵢ, Eᵢ, Gᵢ, Dᵢ
 	
-# 	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
-# 	# which are a numerical representation of the system's wave fucntions
-# 	ψ_R = λ_vec[:, Rᵢ]
-# 	ψ_L = λ_vec[:, Lᵢ]
-# 	E_G = λ_vec[:, Eᵢ][:, Gᵢ]
-# 	E_D = λ_vec[:, Eᵢ][:, Dᵢ]
+	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
+	# which are a numerical representation of the system's wave fucntions
+	ψ_R = λ_vecs[:, Rᵢ]
+	ψ_L = λ_vecs[:, Lᵢ]
+	E_G = λ_vecs[:, Eᵢ][:, Gᵢ]
+	E_D = λ_vecs[:, Eᵢ][:, Dᵢ]
 	
-# 	# evaluate wave function norms $ψₙ_R & $ψₙ_L
-# 	ψₙ_R = norm(ψ_R[(N+1):2*N])^2 - norm(ψ_R[1:N])^2
-# 	ψₙ_L = norm(ψ_L[1:N])^2 - norm(ψ_L[(N+1):2*N])^2
+	#return E_G, E_D
 	
-# 	# apply norming factors to wave funtions
-# 	ψ_R /= √(abs(ψₙ_R))
-# 	ψ_L /= √(abs(ψₙ_L))
+	#return ψ_R, ψ_L, E_G, E_D
+	# evaluate wave function norms $ψₙ_R & $ψₙ_L
+	ψₙ_R = norm(ψ_R[(N+1):2*N])^2 - norm(ψ_R[1:N])^2
+	ψₙ_L = norm(ψ_L[1:N])^2 - norm(ψ_L[(N+1):2*N])^2
 	
-# 	#-formulate system of equations with grouped wave terms:----#
-# 	# $Uₗ_top, create & append to fill 4N sized array
-# 	Uₗ_top = 		-S_T.s_12 * ψ_R[(N+1):(2*N)]
-# 	append!(Uₗ_top, E_G[(N+1):(2*N)] - (S_T.s_11 * E_G[1:N]))
-# 	append!(Uₗ_top, ψ_L[(N+1):(2*N)] - (S_T.s_11 * ψ_L[1:N]))
-# 	append!(Uₗ_top, -S_T.s_12 * E_D[(N+1):(2*N)])
-# 	# $Uₗ_bot, create & append to fill 4N sized array
-# 	Uₗ_bot = 		ψ_R[1:N] - (S_T.s_22 * ψ_R[(N+1):(2*N)])
-# 	append!(Uₗ_bot, -S_T.s_21 * E_G[1:N])
-# 	append!(Uₗ_bot, -S_T.s_21 * ψ_L[1:N])
-# 	append!(Uₗ_bot, E_D[1:N] - S_T.s_22 * E_D[(N+1):(2*N)])
-# 	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-# 	Uₗ = zeros(Complex{Float64}, 4*N, 2)
-# 	Uₗ[:,1] = Uₗ_top
-# 	Uₗ[:,2] = Uₗ_bot
+	#return ψ_R, ψ_L
 	
-# 	# $Uᵣ_top & $Uᵣ_bot create 4N sized arrays
-# 	Uᵣ_top = S_T.s_11 * ψ_R[1:N] - ψ_R[(N+1):(2*N)]
-# 	Uᵣ_bot = S_T.s_21 * ψ_R[1:N]
-# 	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-# 	Uᵣ = zeros(Complex{Float64}, 4*N, 2)
-# 	Uᵣ[:,1] = Uₗ_top
-# 	Uᵣ[:,2] = Uₗ_bot
-# 	#-----------------------------------------------------------#
+	# apply norming factors to wave funtions
+	ψ_R /= √(abs(ψₙ_R))
+	ψ_L /= √(abs(ψₙ_L))
+	
+	#return ψ_R, ψ_L
+	
+	#-formulate system of equations with grouped wave terms:----#
+	# $Uₗ_top, create & append to fill 4N sized array
+	Uₗ_top1 = -S_T.s_12 * ψ_R[(N+1):(2*N)]
+	Uₗ_top2 = E_G[(N+1):(2*N)] - (S_T.s_11 * E_G[1:N])
+	
+	#return Uₗ_top1, Uₗ_top2
+	
+	Uₗ_top3 = ψ_L[(N+1):(2*N)] - (S_T.s_11 * ψ_L[1:N])
+	Uₗ_top4 = -S_T.s_12 * E_D[(N+1):(2*N)]
+	
+	#return Uₗ_top1, Uₗ_top2, Uₗ_top3, Uₗ_top4
+	# return S_T.s_11, S_T.s_12, S_T.s_21, S_T.s_22
+	# $Uₗ_bot, create & append to fill 4N sized array
+	Uₗ_bot = ψ_R[1:N] - (S_T.s_22 * ψ_R[(N+1):(2*N)])
+	append!(Uₗ_bot, -S_T.s_21 * E_G[1:N])
+	append!(Uₗ_bot, -S_T.s_21 * ψ_L[1:N])
+	append!(Uₗ_bot, E_D[1:N] - S_T.s_22 * E_D[(N+1):(2*N)])
+	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
+	Uₗ = zeros(Complex{Float64}, 4*N, 2)
+	Uₗ[:,1] = Uₗ_top
+	Uₗ[:,2] = Uₗ_bot
+
+	# $Uᵣ_top & $Uᵣ_bot create 4N sized arrays
+	Uᵣ_top = S_T.s_11 * ψ_R[1:N] - ψ_R[(N+1):(2*N)]
+	Uᵣ_bot = S_T.s_21 * ψ_R[1:N]
+	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
+	Uᵣ = zeros(Complex{Float64}, 4*N, 2)
+	Uᵣ[:,1] = Uₗ_top
+	Uᵣ[:,2] = Uₗ_bot
+	#-----------------------------------------------------------#
 	
 # 	# evaluate coefficient and store in matrix form
 # 	#coeff = (Uₗ^1)' * Uᵣ
@@ -613,11 +626,11 @@ begin
 	NN = 40
 	VV = smooth_potential(enen, NN, LL, 1., 1., .6, 2)
 	a,b = system_solve(enen, VV, NN, LL, enen, false)
-	writedlm( "eigenvectors_julia.csv",  a, ',')
-	writedlm( "eigenvalues_julia.csv",  b, ',')
-	writedlm( "transfermat_julia.csv",  T(enen, NN).self, ',')
-	b, a
-	# size(a),size(b)
+	writedlm( "wavefunctionR_julia.csv",  a, ',')
+	writedlm( "wavefunctionL_julia.csv",  b, ',')
+	# writedlm( "transfermat_julia.csv",  T(enen, NN).self, ',')
+	#size(a), size(b)
+	a,b
 end
 
 # ╔═╡ 6bde2f84-6258-11eb-0e07-af0a2275fd79
