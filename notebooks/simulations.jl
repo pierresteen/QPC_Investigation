@@ -9,18 +9,11 @@ begin
 	using PlutoUI
 	using QuadGK
 	using Plots
-	using DataStructures
 	using CSV
-	# using QuantumOptics
-	# using ForwardDiff
-	# using ReverseDiff
 end
 
 # ╔═╡ 864da620-6239-11eb-0ecf-031e5c707948
 using LinearAlgebra
-
-# ╔═╡ a90cd184-66f5-11eb-351a-ebb30f7bdcd7
-using DelimitedFiles
 
 # ╔═╡ 7ee2fb54-433c-11eb-1f9b-3528ac7148a4
 md"""
@@ -416,9 +409,6 @@ begin
 	ptest = surface(px, py, V, xlabel="Y", ylabel="X", zlabel="Z", title="Potential barrier profile")
 end
 
-# ╔═╡ e31c8c48-65a1-11eb-3435-1f6e07331619
-V # network node potentials
-
 # ╔═╡ 55f2c2d0-64eb-11eb-18a5-f34ef26d2921
 
 
@@ -541,12 +531,10 @@ function system_solve(μ, V, N, L, i, opt)
 	
 	# extract eigenvectors & eigenvalues from T::T_data.self
 	λ = eigen(T(μ, N).self, sortby=nothing)
-	
-	λ_vals = round.(λ.values, digits=11) 	 # round eigenvalues to 10 decimal places
-	λ_vecs = round.(λ.vectors, digits=11) # ""	  eigenvectors ""
-	
-	return λ_vals, λ_vecs
-	
+	# round eigen-components to 11 decimal places
+	λ_vals = round.(λ.values, digits=11)	
+	λ_vecs = round.(λ.vectors, digits=11)
+
 	# extract indices from:
 	# 	forward & backward propagating waves
 	# 	evanescent growing & decaying waves
@@ -558,8 +546,6 @@ function system_solve(μ, V, N, L, i, opt)
 	Gᵢ = pickoutᵢ(λ_vals[Eᵢ], "G")
 	Dᵢ = pickoutᵢ(λ_vals[Eᵢ], "D")
 	
-	#return Rᵢ, Lᵢ, Eᵢ, Gᵢ, Dᵢ
-	
 	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
 	# which are a numerical representation of the system's wave fucntions
 	ψ_R = λ_vecs[:, Rᵢ]
@@ -567,55 +553,68 @@ function system_solve(μ, V, N, L, i, opt)
 	E_G = λ_vecs[:, Eᵢ][:, Gᵢ]
 	E_D = λ_vecs[:, Eᵢ][:, Dᵢ]
 	
-	#return E_G, E_D
-	
-	#return ψ_R, ψ_L, E_G, E_D
 	# evaluate wave function norms $ψₙ_R & $ψₙ_L
 	ψₙ_R = norm(ψ_R[(N+1):2*N])^2 - norm(ψ_R[1:N])^2
 	ψₙ_L = norm(ψ_L[1:N])^2 - norm(ψ_L[(N+1):2*N])^2
 	
-	#return ψ_R, ψ_L
-	
 	# apply norming factors to wave funtions
-	ψ_R /= √(abs(ψₙ_R))
-	ψ_L /= √(abs(ψₙ_L))
+	ψ_R = ψ_R ./ √(abs(ψₙ_R))
+	ψ_L = ψ_L ./ √(abs(ψₙ_L))
+	#-- passes until here!!
 	
-	#return ψ_R, ψ_L
+	## formulate system of equations with grouped wave terms: ##
 	
-	#-formulate system of equations with grouped wave terms:----#
 	# $Uₗ_top, create & append to fill 4N sized array
-	Uₗ_top1 = -S_T.s_12 * ψ_R[(N+1):(2*N)]
-	Uₗ_top2 = E_G[(N+1):(2*N)] - (S_T.s_11 * E_G[1:N])
-	
-	#return Uₗ_top1, Uₗ_top2
-	
-	Uₗ_top3 = ψ_L[(N+1):(2*N)] - (S_T.s_11 * ψ_L[1:N])
-	Uₗ_top4 = -S_T.s_12 * E_D[(N+1):(2*N)]
-	
-	#return Uₗ_top1, Uₗ_top2, Uₗ_top3, Uₗ_top4
-	# return S_T.s_11, S_T.s_12, S_T.s_21, S_T.s_22
+	Uₗ_top = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
+	Uₗ_top = cat(Uₗ_top, E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:]), dims=2)
+	Uₗ_top = cat(Uₗ_top, ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:]), dims=2)
+	Uₗ_top = cat(Uₗ_top, -S_T.s_12 * E_D[(N+1):(2*N),:], dims=2)
+	#-- passes until here
+
 	# $Uₗ_bot, create & append to fill 4N sized array
-	Uₗ_bot = ψ_R[1:N] - (S_T.s_22 * ψ_R[(N+1):(2*N)])
-	append!(Uₗ_bot, -S_T.s_21 * E_G[1:N])
-	append!(Uₗ_bot, -S_T.s_21 * ψ_L[1:N])
-	append!(Uₗ_bot, E_D[1:N] - S_T.s_22 * E_D[(N+1):(2*N)])
+	Uₗ_bot = ψ_R[1:N,:] - (S_T.s_22 * ψ_R[(N+1):(2*N),:])
+	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * E_G[1:N,:], dims=2)
+	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * ψ_L[1:N,:], dims=2)
+	Uₗ_bot = cat(Uₗ_bot, E_D[1:N,:] - S_T.s_22 * E_D[(N+1):(2*N),:], dims=2)
+	#return Uₗ_bot
+	#-- passes until here
+	
 	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uₗ = zeros(Complex{Float64}, 4*N, 2)
-	Uₗ[:,1] = Uₗ_top
-	Uₗ[:,2] = Uₗ_bot
+	Uₗ = zeros(Complex{Float64}, 2*N, 2*N)
+	Uₗ[1:N,:] 		  = Uₗ_top
+	Uₗ[(N+1):(2*N),:] = Uₗ_bot
+	#return Uₗ
+	#-- passses until here
 
 	# $Uᵣ_top & $Uᵣ_bot create 4N sized arrays
-	Uᵣ_top = S_T.s_11 * ψ_R[1:N] - ψ_R[(N+1):(2*N)]
-	Uᵣ_bot = S_T.s_21 * ψ_R[1:N]
-	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uᵣ = zeros(Complex{Float64}, 4*N, 2)
-	Uᵣ[:,1] = Uₗ_top
-	Uᵣ[:,2] = Uₗ_bot
-	#-----------------------------------------------------------#
+	Uᵣ_top = S_T.s_11 * ψ_R[1:N,:] - ψ_R[(N+1):(2*N),:]
+	Uᵣ_bot = S_T.s_21 * ψ_R[1:N,:]
 	
-# 	# evaluate coefficient and store in matrix form
-# 	#coeff = (Uₗ^1)' * Uᵣ
-# 	return Uᵣ, Uₗ
+	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
+	Uᵣ = zeros(Complex{Float64}, 2*N, size(Uᵣ_bot)[2])
+	Uᵣ[1:N,:] 		  = Uᵣ_top
+	Uᵣ[(N+1):(2*N),:] = Uᵣ_bot
+	
+	# evaluate coefficient and store in matrix form
+	coeff = (Uₗ^1)' * Uᵣ
+	#return coeff 
+	
+	# find the number of wave types from size of wavefunction and evanescent matrices
+	num_I = size(ψ_L)[2]	# number of incident waves
+	num_E = size(E_D)[2]	# number of evanescent waves
+	
+	# extract solution parameters from coefficients matrix
+	τ = coeff[1:(num_I), :]
+	α = coeff[(num_I):(num_I+num_E), :]
+	r = coeff[(num_I+num_E):(2*num_I+num_E), :]
+	β = coeff[(2*num_I+num_E):(2*num_I+2*num_E), :]
+	
+	# calculate conductance G:
+	G = norm(τ)^2
+	
+	#test  = sum(abs.(τ).^2 + abs.(r).^2)
+	#test2 = round(sum(test) / length(test), digits=5)
+	return G, τ, α, r, β
 end
 
 # ╔═╡ c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
@@ -624,14 +623,21 @@ begin
 	enen = 0.5
 	LL = 200
 	NN = 40
-	VV = smooth_potential(enen, NN, LL, 1., 1., .6, 2)
-	a,b = system_solve(enen, VV, NN, LL, enen, false)
-	writedlm( "wavefunctionR_julia.csv",  a, ',')
-	writedlm( "wavefunctionL_julia.csv",  b, ',')
-	# writedlm( "transfermat_julia.csv",  T(enen, NN).self, ',')
-	#size(a), size(b)
-	a,b
+	
+	energies = 0.3:0.0141:1.
+	G = zeros(Float64, length(energies))
+	
+	for i in 1:length(energies)
+		VV 	 = smooth_potential(energies[i], NN, LL, 1., 1., .6, 2)
+		G[i] = system_solve(enen, VV, NN, LL, enen, true)[1]
+	end
 end
+
+# ╔═╡ 27f88666-6d5c-11eb-29ac-7d6d547fb68c
+G
+
+# ╔═╡ d91f47b4-6d5b-11eb-256a-7f9c3556c16f
+plot(G)
 
 # ╔═╡ 6bde2f84-6258-11eb-0e07-af0a2275fd79
 
@@ -680,14 +686,14 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╠═fe16d518-64e7-11eb-04f5-bb25ed0a9eea
 # ╠═6b63b052-64eb-11eb-1a62-33262062ece1
 # ╠═629a9616-625c-11eb-0e76-536b5de36ab7
-# ╠═e31c8c48-65a1-11eb-3435-1f6e07331619
 # ╟─55f2c2d0-64eb-11eb-18a5-f34ef26d2921
 # ╟─2fd4b1e0-65a3-11eb-0d0f-11f141dd4a02
 # ╠═a6518c56-630c-11eb-0bc6-d362397958c9
 # ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═5ad541b0-64eb-11eb-0782-a59689a23af5
-# ╠═a90cd184-66f5-11eb-351a-ebb30f7bdcd7
 # ╠═c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
+# ╠═27f88666-6d5c-11eb-29ac-7d6d547fb68c
+# ╠═d91f47b4-6d5b-11eb-256a-7f9c3556c16f
 # ╟─6bde2f84-6258-11eb-0e07-af0a2275fd79
 # ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
