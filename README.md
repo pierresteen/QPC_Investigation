@@ -1,5 +1,7 @@
 # QPC_Investigation
 
+## Running *Julia* notebooks
+
 Contents of the `/notebooks` folder are [*Pluto*](https://juliapackages.com/p/pluto) notebooks and can be run interactively.
 
 To achieve this:
@@ -25,5 +27,5 @@ To achieve this:
 
 - system solving function: `system_solve(μ, V, L, i, opt) -> G::Float64`
   - output behaviour is **nominal** in: data *size* and *type*
-  - output behaviour is **not nominal** in: *range* and *scale*
+  - output behaviour is **not nominal** in: data *range* and *scale*
   
