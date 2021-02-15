@@ -24,5 +24,6 @@ To achieve this:
 ### Buggy features
 
 - system solving function: `system_solve(μ, V, L, i, opt) -> G::Float64`
-  - unsure whether bugs originate from solving function or pre-requisites, dubgging under-way
-  - function behaviour is **nominal**, output range and scale **not nominal**
+  - output behaviour is **nominal** in: data *size* and *type*
+  - output behaviour is **not nominal** in: *range* and *scale*
+  
