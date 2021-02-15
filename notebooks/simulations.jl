@@ -12,6 +12,12 @@ begin
 	using CSV
 end
 
+# ╔═╡ 4647aa28-6f68-11eb-327f-932db8a77f9d
+begin
+	using DelimitedFiles
+	using DataFrames
+end
+
 # ╔═╡ 864da620-6239-11eb-0ecf-031e5c707948
 using LinearAlgebra
 
@@ -179,12 +185,12 @@ V
 
 The wave functions of each column are represented by:
 
-$\p2si_n(y)$
+$\psi_n(y)$
 """
 
-# ╔═╡ 47bf96ce-6f55-11eb-138c-a36bb49536a0
+# ╔═╡ 4ed78040-6f62-11eb-18dc-9f2c434ae7fa
 md"""
-_Pluto_
+### Testing
 """
 
 # ╔═╡ 4dedeecc-6246-11eb-00c7-014b87b08c32
@@ -233,13 +239,6 @@ function T(μ, N)
 	return T_data(T, t_11, t_12, t_21, t_22) # return ::T_data
 end;
 
-# ╔═╡ 88cd31c8-6f53-11eb-2452-ed4e129e73d3
-## testing T(μ, N)
-begin
-	test1 = T(0.5, 40).self
-	sum(abs.(test1))
-end
-
 # ╔═╡ b9d7ddd8-624a-11eb-1084-35320b3f9afb
 """
 Decomposed S-matrix properties of `S`, including self.
@@ -256,7 +255,7 @@ end;
 
 # ╔═╡ 41a9c7cc-6245-11eb-148b-3791b3fb504c
 """
-	S(T, N)
+	S(T)
 
 Given a diagonal transfer matrix `T`, `S(T)`  constructs the correspondnig S-matrix for the Hamiltonian model.
 
@@ -265,7 +264,7 @@ The output `S` is also a `2N`x`2N` matrix of `complex`, `float64` type values.
 function S(T::T_data)
 	N = size(T.t_11)[1]
 	# evaluate s_ij blocks
-	s_11 = -(T.t_22)^-1 * T.t_21
+	s_11 = -((T.t_22)^-1 * T.t_21)
 	s_12 = (T.t_22)^-1
 	s_21 = T.t_11 - T.t_12 * (T.t_22)^-1 * T.t_21
 	s_22 = T.t_12 * (T.t_22)^-1
@@ -288,11 +287,11 @@ Sums two S-matrix data types (`::S_data`)
 """
 function sum_S(Sa::S_data, Sb::S_data)
 	N = size(Sa.s_11)[1] # later add size equality Sa <-> Sb check
-	Id = 1 * Matrix(I, N, N)
+	Id = Float64.(1 * Matrix(I, N, N))
 	
 	# intermediary variables for clarity of inverse calculations
-	inter1 = (Id .- Sb.s_11 * Sa.s_22)^-1
-	inter2 = (Id .- Sa.s_22 * Sb.s_11)^-1
+	inter1 = (Id - (Sb.s_11 * Sa.s_22))^-1
+	inter2 = (Id - (Sa.s_22 * Sb.s_11))^-1
 	
 	# evaluate new s_ij block values
 	s_11 = Sa.s_11 + Sa.s_12 * inter1 * Sb.s_11 * Sa.s_21
@@ -309,6 +308,61 @@ function sum_S(Sa::S_data, Sb::S_data)
 	
 	return S_data(S, s_11, s_12, s_21, s_22) # return next S::S_data
 end;
+
+# ╔═╡ e27d74fe-6e6c-11eb-08d5-b988732170d0
+begin
+	# defs
+	en = 0.5
+	L = 200
+	N = 40
+	
+	#--------------
+	# T(μ, N) test:
+	testT = T(en, N) # 'μ' = en, 'N' = N
+	test1 = sum(abs.(testT.self))
+	test1py = 457.245154965971
+	@assert test1 ≈ test1py # if no error thrown, test passed
+	# passed: T(μ,N)
+	#---------------
+	
+	#---------------
+	# S(T) test:
+	testS = S(testT)
+	test2 = sum(abs.(testS.self))
+	test2py = 161.7392858984968
+	@assert test2 ≈ test2py
+	# passed: S(T = testT)
+	#---------------
+	
+	#---------------
+	# add_S(S1, S2) test:
+	testsumS = sum_S(testS, testS)
+	test3 = sum(abs.(testsumS.self))
+	test3py = 183.40429233351034
+	#@assert test3 ≈ test3py
+	test3
+	
+	## sum_S(testS, testS) expansion
+	Id = Float64.(1 * Matrix(I, N, N))
+	
+	inter1 = testS.s_11 * testS.s_22
+	inter2 = testS.s_22 * testS.s_11
+	# intermediary variables for clarity of inverse calculations
+	#inter1 = inv(Id - (testS.s_11 * testS.s_22))
+	#inter2 = inv(Id - (testS.s_22 * testS.s_11))
+	(sum(abs.(inter1)), sum(abs.(inter2)))
+	
+	##
+	abs.(testT.self)
+	abs.(testS.self)
+	#writedlm( "testSjulia.csv",  abs.(testS.self), ',')
+	abs.(testsumS.self)
+	
+	# read in saved absolute value matrix of S from python
+	pyS = CSV.File("testSpy.csv") |> Tables.matrix
+	size(pyS)
+	@assert isapprox(abs.(testS.self), pyS, atol=0.165e-4)
+end
 
 # ╔═╡ d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 """
@@ -428,45 +482,6 @@ end
 md"""
 ### Test 1:
 """
-
-# ╔═╡ a6518c56-630c-11eb-0bc6-d362397958c9
-#-----------------------test bench-----------------------#
-begin
-	N = 40
-
-	# testing if T(...) works
-	t_test = T(V[:,1], size(V)[1]) # T(...) passes!
-
-	# testing if S(...) works
-	s11a = (t_test.t_22)^-1 * t_test.t_21
-	s12a = (t_test.t_22)^-1
-	s21a = t_test.t_11 - t_test.t_12 * (t_test.t_22)^-1 * t_test.t_21
-	s22a = t_test.t_12 * (t_test.t_22)^-1
-	Sal = zeros(Complex{Float64}, 2*N, 2*N)
-	Sal[1:N,1:N] 					= s11a
-	Sal[1:N,(N+1):(2*N)] 			= s12a
-	Sal[(N+1):(2*N),1:N] 			= s21a
-	Sal[(N+1):(2*N),(N+1):(2*N)] 	= s22a
-	s_testa = S_data(Sal, s11a, s12a, s21a, s22a) # S(...) passes!
-
-	s11b = (t_test.t_22)^-1 * t_test.t_21 .+ 0.1
-	s12b = (t_test.t_22)^-1 .+ 0.1
-	s21b = t_test.t_11 - t_test.t_12 * (t_test.t_22)^-1 * t_test.t_21 .+ 0.1
-	s22b = t_test.t_12 * (t_test.t_22)^-1 .+ 0.1
-	Sbl = zeros(Complex{Float64}, 2*N, 2*N)
-	Sbl[1:N,1:N] 					= s11b
-	Sbl[1:N,(N+1):(2*N)] 			= s12b
-	Sbl[(N+1):(2*N),1:N] 			= s21b
-	Sbl[(N+1):(2*N),(N+1):(2*N)] 	= s22b
-	s_testb = S_data(Sbl, s11b, s12b, s21b, s22b)
-
-	# testing if sum_S(...) works
-	test_sum_S = sum_S(s_testb, s_testa) # sum_S(...) passses !
-
-	test_gen_S_total = gen_S_total(V, 100)
-	test_gen_S_total_opt = gen_S_total_opt(V, 100) # both functions pass
-	t_test
-end
 
 # ╔═╡ 2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 md"""
@@ -638,16 +653,6 @@ function system_solve(μ, V, N, L, i, opt)
 	#return G, τ, α, r, β
 end
 
-# ╔═╡ e27d74fe-6e6c-11eb-08d5-b988732170d0
-begin
-	ent = 0.5
-	LLt = 200
-	NNt = 40
-	VVt = smooth_potential(ent, NNt, LLt, 1., 1., .6, 2)
-	a = system_solve(ent, VVt, NNt, LLt, ent, true)
-	sum(abs.(a))
-end
-
 # ╔═╡ c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
 # system_solve test cell
 # begin
@@ -699,11 +704,12 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╠═ef273a10-5f6e-11eb-386e-4df51c71d0b5
 # ╟─3d636042-61ff-11eb-1b22-9555285fe9af
 # ╟─3e467742-61ff-11eb-3640-8f313ff08354
-# ╠═47bf96ce-6f55-11eb-138c-a36bb49536a0
+# ╟─4ed78040-6f62-11eb-18dc-9f2c434ae7fa
+# ╠═4647aa28-6f68-11eb-327f-932db8a77f9d
+# ╠═e27d74fe-6e6c-11eb-08d5-b988732170d0
 # ╠═864da620-6239-11eb-0ecf-031e5c707948
 # ╠═4dedeecc-6246-11eb-00c7-014b87b08c32
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
-# ╠═88cd31c8-6f53-11eb-2452-ed4e129e73d3
 # ╠═b9d7ddd8-624a-11eb-1084-35320b3f9afb
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
@@ -715,11 +721,9 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╠═629a9616-625c-11eb-0e76-536b5de36ab7
 # ╟─55f2c2d0-64eb-11eb-18a5-f34ef26d2921
 # ╟─2fd4b1e0-65a3-11eb-0d0f-11f141dd4a02
-# ╠═a6518c56-630c-11eb-0bc6-d362397958c9
 # ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═5ad541b0-64eb-11eb-0782-a59689a23af5
-# ╠═e27d74fe-6e6c-11eb-08d5-b988732170d0
 # ╠═c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
 # ╟─6bde2f84-6258-11eb-0e07-af0a2275fd79
 # ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
