@@ -7,11 +7,11 @@ using Plots
 using CSV
 
 # constsants
-const e 	= -1.602176634e-19 	# (C)
-const h 	= 6.62607015e-34 	# (Js)
-const ħ 	= 1.054571817e-34 	# (Js)
-const h_eV 	= abs(h/e) 		 	# (eVs)
-const ħ_eV 	= abs(ħ/e) 			# (eVs)
+# const e 	= -1.602176634e-19 	# (C)
+# const h 	= 6.62607015e-34 	# (Js)
+# const ħ 	= 1.054571817e-34 	# (Js)
+# const h_eV 	= abs(h/e) 		# (eVs)
+# const ħ_eV 	= abs(ħ/e) 		# (eVs)
 
 """
 Decomposed transfer properties of `T`, including self.
@@ -20,14 +20,14 @@ Used to avoid having to reindex to extract `T` block matrices `t_ij`.
 struct T_data
 	self # transfer matrix $T
 	# component block matrices
-	t_11
-	t_12
-	t_21
-	t_22
-end;
+	t11
+	t12
+	t21
+	t22
+end
 
 """
-	T(V_y)
+	T(μ, N)
 
 Generates a diagonal tranfer data type `T::T_data` for given bias potentail: `μ`.
 `T` is a `2N`x`2N` matrix, with three main diagonals at `diagind[1] = 0, 5, -5`.
@@ -42,20 +42,20 @@ function T(μ, N)
 	H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, N) .- μ) + diagm(1 => -v)
 	
 	# form blocked transfer matrix blocks t_ij from $im_mat, $v and $H
-	t_11 = -im_mat .+ 0.5 * H
-	t_12 = Complex.(-0.5 * H)
-	t_21 = Complex.(-0.5 * H)
-	t_22 = im_mat .+ 0.5 * H
+	t11 = -im_mat .+ 0.5 * H
+	t12 = Complex.(-0.5 * H)
+	t21 = Complex.(-0.5 * H)
+	t22 = im_mat .+ 0.5 * H
 	
 	# assemble transfer matrix blocks t_ij; into matrix T
 	T = zeros(Complex{Float64}, 2*N, 2*N)
-	T[1:N,1:N] 					= t_11
-	T[1:N,(N+1):(2*N)] 			= t_12
-	T[(N+1):(2*N),1:N] 			= t_21
-	T[(N+1):(2*N),(N+1):(2*N)] 	= t_22
+	T[1:N,1:N] 					= t11
+	T[1:N,(N+1):(2*N)] 			= t12
+	T[(N+1):(2*N),1:N] 			= t21
+	T[(N+1):(2*N),(N+1):(2*N)] 	= t22
 	
-	return T_data(T, t_11, t_12, t_21, t_22) # return ::T_data
-end;
+	return T_data(T, t11, t12, t21, t22) # return ::T_data
+end
 
 """
 Decomposed S-matrix properties of `S`, including self.
@@ -64,11 +64,11 @@ Used to avoid having to reindex to extract `S` block matrices `s_ij`.
 struct S_data
 	self # transfer matrix $S
 	# component block matrices
-	s_11
-	s_12
-	s_21
-	s_22
-end;
+	s11
+	s12
+	s21
+	s22
+end
 
 """
 	S(T, N)
@@ -78,22 +78,22 @@ Given a diagonal transfer matrix `T`, `S(T)`  constructs the correspondnig S-mat
 The output `S` is also a `2N`x`2N` matrix of `complex`, `float64` type values.
 """
 function S(T::T_data)
-	N = size(T.t_11)[1]
+	N = size(T.t11)[1]
 	# evaluate s_ij blocks
-	s_11 = -(T.t_22)^-1 * T.t_21
-	s_12 = (T.t_22)^-1
-	s_21 = T.t_11 - T.t_12 * (T.t_22)^-1 * T.t_21
-	s_22 = T.t_12 * (T.t_22)^-1
+	s11 = -(T.t22)^-1 * T.t21
+	s12 = (T.t22)^-1
+	s21 = T.t11 - T.t12 * (T.t22)^-1 * T.t21
+	s22 = T.t12 * (T.t22)^-1
 	
 	# assemble S-matrix from s_ij blocks
 	S = zeros(Complex{Float64}, 2*N, 2*N)
-	S[1:N,1:N] 					= s_11
-	S[1:N,(N+1):(2*N)] 			= s_12
-	S[(N+1):(2*N),1:N] 			= s_21
-	S[(N+1):(2*N),(N+1):(2*N)] 	= s_22
+	S[1:N,1:N] 					= s11
+	S[1:N,(N+1):(2*N)] 			= s12
+	S[(N+1):(2*N),1:N] 			= s21
+	S[(N+1):(2*N),(N+1):(2*N)] 	= s22
 	
-	return S_data(S, s_11, s_12, s_21, s_22) # return ::S_data
-end;
+	return S_data(S, s11, s12, s21, s22) # return ::S_data
+end
 
 """
 	sum_S(Sa, Sb)
@@ -101,28 +101,28 @@ end;
 Sums two S-matrix data types (`::S_data`)
 """
 function sum_S(Sa::S_data, Sb::S_data)
-	N = size(Sa.s_11)[1] # later add size equality Sa <-> Sb check
+	N = size(Sa.s11)[1] # later add size equality Sa <-> Sb check
 	Id = 1 * Matrix(I, N, N)
 	
 	# intermediary variables for clarity of inverse calculations
-	inter1 = (Id .- Sb.s_11 * Sa.s_22)^-1
-	inter2 = (Id .- Sa.s_22 * Sb.s_11)^-1
+	inter1 = (Id .- Sb.s11 * Sa.s22)^-1
+	inter2 = (Id .- Sa.s22 * Sb.s11)^-1
 	
 	# evaluate new s_ij block values
-	s_11 = Sa.s_11 + Sa.s_12 * inter1 * Sb.s_11 * Sa.s_21
-	s_12 = Sa.s_12 * inter1  * Sb.s_12
-	s_21 = Sb.s_21 * inter2  * Sa.s_21
-	s_22 = Sb.s_22 * Sb.s_21 * inter2 * Sa.s_22 * Sb.s_12
+	s11 = Sa.s11 + Sa.s12 * inter1 * Sb.s11 * Sa.s21
+	s12 = Sa.s12 * inter1  * Sb.s12
+	s21 = Sb.s21 * inter2  * Sa.s21
+	s22 = Sb.s22 * Sb.s21 * inter2 * Sa.s22 * Sb.s12
 	
 	# assemble S-matrix from s_ij blocks
 	S = zeros(Complex{Float64}, (2*N), (2*N))
-	S[1:N, 1:N] 				= s_11
-	S[1:N, (N+1):(2*N)] 		= s_12
-	S[(N+1):(2*N), 1:N] 		= s_21
-	S[(N+1):(2*N), (N+1):(2*N)] = s_22
+	S[1:N, 1:N] 				= s11
+	S[1:N, (N+1):(2*N)] 		= s12
+	S[(N+1):(2*N), 1:N] 		= s21
+	S[(N+1):(2*N), (N+1):(2*N)] = s22
 	
-	return S_data(S, s_11, s_12, s_21, s_22) # return next S::S_data
-end;
+	return S_data(S, s11, s12, s21, s22) # return next S::S_data
+end
 
 """
 	gen_S_total(V, L)
@@ -136,7 +136,7 @@ function gen_S_total(V, L)
 		S_T = sum_S(S_T, S(T(V[:,j], size(V)[1])))
 	end
 	return S_T
-end;
+end
 
 """
 	prod_T(x::T_data, y::T_data)
@@ -145,11 +145,11 @@ Multiple dispatch for multiplying two objects `::T_data` composed of a `self` ma
 """
 function prod_T(x::T_data, y::T_data)
 	return T_data((x.self * y.self),
-				  (x.t_11 * y.t_11), 
-			 	  (x.t_12 * y.t_12),
-				  (x.t_21 * y.t_21),
-			 	  (x.t_22 * y.t_22))
-end;
+				  (x.t11 * y.t11), 
+			 	  (x.t12 * y.t12),
+				  (x.t21 * y.t21),
+			 	  (x.t22 * y.t22))
+end
 
 """
 	gen_S_total_opt(V, L)
@@ -172,7 +172,7 @@ function gen_S_total_opt(V, L)
 	end
 	
 	return S_Topt
-end;
+end
 
 """
 	smooth_potential(μ, N, L, xL=1.,yL=1., h=1., prof=1)
@@ -267,12 +267,10 @@ function system_solve(μ, V, N, L, i, opt)
 	
 	# extract eigenvectors & eigenvalues from T::T_data.self
 	λ = eigen(T(μ, N).self, sortby=nothing)
-	
-	λ_vals = round.(λ.values, digits=11) 	 # round eigenvalues to 10 decimal places
-	λ_vecs = round.(λ.vectors, digits=11) # ""	  eigenvectors ""
+	# round eigen-components to 11 decimal places
+	λ_vals = round.(λ.values, digits=11)	
+	λ_vecs = round.(λ.vectors, digits=11)
 
-	#return λ_vals, λ_vecs
-	
 	# extract indices from:
 	# 	forward & backward propagating waves
 	# 	evanescent growing & decaying waves
@@ -284,8 +282,6 @@ function system_solve(μ, V, N, L, i, opt)
 	Gᵢ = pickoutᵢ(λ_vals[Eᵢ], "G")
 	Dᵢ = pickoutᵢ(λ_vals[Eᵢ], "D")
 	
-	#return Rᵢ, Lᵢ, Eᵢ, Gᵢ, Dᵢ
-	
 	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
 	# which are a numerical representation of the system's wave functions
 	ψ_R = λ_vecs[:, Rᵢ]
@@ -293,69 +289,82 @@ function system_solve(μ, V, N, L, i, opt)
 	E_G = λ_vecs[:, Eᵢ][:, Gᵢ]
 	E_D = λ_vecs[:, Eᵢ][:, Dᵢ]
 	
-	return E_G, E_D
-	
-	#return ψ_R, ψ_L, E_G, E_D
 	# evaluate wave function norms $ψₙ_R & $ψₙ_L
 	ψₙ_R = norm(ψ_R[(N+1):2*N])^2 - norm(ψ_R[1:N])^2
 	ψₙ_L = norm(ψ_L[1:N])^2 - norm(ψ_L[(N+1):2*N])^2
 	
-	#return ψ_R, ψ_L
-	
 	# apply norming factors to wave funtions
-	ψ_R /= √(abs(ψₙ_R))
-	ψ_L /= √(abs(ψₙ_L))
+	ψ_R = ψ_R ./ √(abs(ψₙ_R))
+	ψ_L = ψ_L ./ √(abs(ψₙ_L))
+	#-- passes until here!!
 	
-	#return ψ_R, ψ_L
+	## formulate system of equations with grouped wave terms: ##
 	
-	#-formulate system of equations with grouped wave terms:----#
 	# $Uₗ_top, create & append to fill 4N sized array
-	Uₗ_top1 = -S_T.s_12 * ψ_R[(N+1):(2*N)]
-	Uₗ_top2 = E_G[(N+1):(2*N)] - (S_T.s_11 * E_G[1:N])
-	
-	#return Uₗ_top1, Uₗ_top2
-	
-	Uₗ_top3 = ψ_L[(N+1):(2*N)] - (S_T.s_11 * ψ_L[1:N])
-	Uₗ_top4 = -S_T.s_12 * E_D[(N+1):(2*N)]
-	
-	#return Uₗ_top1, Uₗ_top2, Uₗ_top3, Uₗ_top4
-	# return S_T.s_11, S_T.s_12, S_T.s_21, S_T.s_22
+	Uₗ_top = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
+	Uₗ_top = cat(Uₗ_top, E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:]), dims=2)
+	Uₗ_top = cat(Uₗ_top, ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:]), dims=2)
+	Uₗ_top = cat(Uₗ_top, -S_T.s_12 * E_D[(N+1):(2*N),:], dims=2)
+	#-- passes until here
+
 	# $Uₗ_bot, create & append to fill 4N sized array
-	Uₗ_bot = ψ_R[1:N] - (S_T.s_22 * ψ_R[(N+1):(2*N)])
-	append!(Uₗ_bot, -S_T.s_21 * E_G[1:N])
-	append!(Uₗ_bot, -S_T.s_21 * ψ_L[1:N])
-	append!(Uₗ_bot, E_D[1:N] - S_T.s_22 * E_D[(N+1):(2*N)])
+	Uₗ_bot = ψ_R[1:N,:] - (S_T.s_22 * ψ_R[(N+1):(2*N),:])
+	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * E_G[1:N,:], dims=2)
+	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * ψ_L[1:N,:], dims=2)
+	Uₗ_bot = cat(Uₗ_bot, E_D[1:N,:] - S_T.s_22 * E_D[(N+1):(2*N),:], dims=2)
+	#return Uₗ_bot
+	#-- passes until here
+	
 	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uₗ = zeros(Complex{Float64}, 4*N, 2)
-	Uₗ[:,1] = Uₗ_top
-	Uₗ[:,2] = Uₗ_bot
+	Uₗ = zeros(Complex{Float64}, 2*N, 2*N)
+	Uₗ[1:N,:] 		  = Uₗ_top
+	Uₗ[(N+1):(2*N),:] = Uₗ_bot
+	#Uₗ = hcat()
+	#return Uₗ
+	#-- passses until here
 
 	# $Uᵣ_top & $Uᵣ_bot create 4N sized arrays
-	Uᵣ_top = S_T.s_11 * ψ_R[1:N] - ψ_R[(N+1):(2*N)]
-	Uᵣ_bot = S_T.s_21 * ψ_R[1:N]
-	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ
-	# the total eq.-system matrix
-	Uᵣ = zeros(Complex{Float64}, 4*N, 2)
-	Uᵣ[:,1] = Uₗ_top
-	Uᵣ[:,2] = Uₗ_bot
-	#-----------------------------------------------------------#
+	Uᵣ_top = S_T.s_11 * ψ_R[1:N,:] - ψ_R[(N+1):(2*N),:]
+	Uᵣ_bot = S_T.s_21 * ψ_R[1:N,:]
 	
-# 	# evaluate coefficient and store in matrix form
-# 	#coeff = (Uₗ^1)' * Uᵣ
-# 	return Uᵣ, Uₗ
+	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
+	Uᵣ = zeros(Complex{Float64}, 2*N, size(Uᵣ_bot)[2])
+	Uᵣ[1:N,:] 		  = Uᵣ_top
+	Uᵣ[(N+1):(2*N),:] = Uᵣ_bot
+	
+	# evaluate coefficient and store in matrix form
+	coeff = (Uₗ^1)' * Uᵣ
+	#return coeff 
+	
+	# find the number of wave types from size of wavefunction and evanescent matrices
+	num_I = size(ψ_L)[2]	# number of incident waves
+	num_E = size(E_D)[2]	# number of evanescent waves
+	
+	# extract solution parameters from coefficients matrix
+	τ = coeff[1:(num_I), :]
+	α = coeff[(num_I):(num_I+num_E), :]
+	r = coeff[(num_I+num_E):(2*num_I+num_E), :]
+	β = coeff[(2*num_I+num_E):(2*num_I+2*num_E), :]
+	
+	# calculate conductance G:
+	G = norm(τ)^2
+	
+	#test  = sum(abs.(τ).^2 + abs.(r).^2)
+	#test2 = round(sum(test) / length(test), digits=5)
+	return G, τ, α, r, β
 end
 
 ##		Testing		##
+# enen = 0.5
+# LL = 200
+# NN = 40
+# VV = smooth_potential(enen, NN, LL, 1., 1., .6, 2)
+# a,b = system_solve(enen, VV, NN, LL, enen, false)
+# #writedlm( "wavefunctionR_julia.csv",  a, ',')
+# #writedlm( "wavefunctionL_julia.csv",  b, ',')
+# # writedlm( "transfermat_julia.csv",  T(enen, NN).self, ',')
+# #size(a), size(b)
+# a,b
 
-enen = 0.5
-LL = 200
-NN = 40
-VV = smooth_potential(enen, NN, LL, 1., 1., .6, 2)
-a,b = system_solve(enen, VV, NN, LL, enen, false)
-#writedlm( "wavefunctionR_julia.csv",  a, ',')
-#writedlm( "wavefunctionL_julia.csv",  b, ',')
-# writedlm( "transfermat_julia.csv",  T(enen, NN).self, ',')
-#size(a), size(b)
-a,b
-
+export T, S
 end

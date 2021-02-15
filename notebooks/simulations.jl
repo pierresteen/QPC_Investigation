@@ -179,7 +179,12 @@ V
 
 The wave functions of each column are represented by:
 
-$\psi_n(y)$
+$\p2si_n(y)$
+"""
+
+# ╔═╡ 47bf96ce-6f55-11eb-138c-a36bb49536a0
+md"""
+_Pluto_
 """
 
 # ╔═╡ 4dedeecc-6246-11eb-00c7-014b87b08c32
@@ -227,6 +232,13 @@ function T(μ, N)
 	
 	return T_data(T, t_11, t_12, t_21, t_22) # return ::T_data
 end;
+
+# ╔═╡ 88cd31c8-6f53-11eb-2452-ed4e129e73d3
+## testing T(μ, N)
+begin
+	test1 = T(0.5, 40).self
+	sum(abs.(test1))
+end
 
 # ╔═╡ b9d7ddd8-624a-11eb-1084-35320b3f9afb
 """
@@ -565,11 +577,19 @@ function system_solve(μ, V, N, L, i, opt)
 	## formulate system of equations with grouped wave terms: ##
 	
 	# $Uₗ_top, create & append to fill 4N sized array
-	Uₗ_top = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
-	Uₗ_top = cat(Uₗ_top, E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:]), dims=2)
-	Uₗ_top = cat(Uₗ_top, ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:]), dims=2)
-	Uₗ_top = cat(Uₗ_top, -S_T.s_12 * E_D[(N+1):(2*N),:], dims=2)
-	#-- passes until here
+	# Uₗ_top = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
+	# Uₗ_top = cat(Uₗ_top, E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:]), dims=2)
+	# Uₗ_top = cat(Uₗ_top, ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:]), dims=2)
+	# Uₗ_top = cat(Uₗ_top, -S_T.s_12 * E_D[(N+1):(2*N),:], dims=2)
+	lt1 = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
+	lt2 = E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:])
+	lt3 = ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:])
+	lt4 = -S_T.s_12 * E_D[(N+1):(2*N),:]
+	Uₗ_top = hcat(lt1, lt2, lt3, lt4)
+
+	#return (size(lt1), size(lt2), size(lt3), size(lt4))
+	return Uₗ_top
+	#-- passes but Uₗ_top ≠ python(eqiuv. Uₗ_top)
 
 	# $Uₗ_bot, create & append to fill 4N sized array
 	Uₗ_bot = ψ_R[1:N,:] - (S_T.s_22 * ψ_R[(N+1):(2*N),:])
@@ -591,9 +611,10 @@ function system_solve(μ, V, N, L, i, opt)
 	Uᵣ_bot = S_T.s_21 * ψ_R[1:N,:]
 	
 	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uᵣ = zeros(Complex{Float64}, 2*N, size(Uᵣ_bot)[2])
-	Uᵣ[1:N,:] 		  = Uᵣ_top
-	Uᵣ[(N+1):(2*N),:] = Uᵣ_bot
+	#Uᵣ = zeros(Complex{Float64}, 2*N, size(Uᵣ_bot)[2])
+	#Uᵣ[1:N,:] 		   = Uᵣ_top
+	#Uᵣ[(N+1):(2*N),:] = Uᵣ_bot
+	Uᵣ = vcat(Uᵣ_top, Uᵣ_bot)
 	
 	# evaluate coefficient and store in matrix form
 	coeff = (Uₗ^1)' * Uᵣ
@@ -614,30 +635,34 @@ function system_solve(μ, V, N, L, i, opt)
 	
 	#test  = sum(abs.(τ).^2 + abs.(r).^2)
 	#test2 = round(sum(test) / length(test), digits=5)
-	return G, τ, α, r, β
+	#return G, τ, α, r, β
+end
+
+# ╔═╡ e27d74fe-6e6c-11eb-08d5-b988732170d0
+begin
+	ent = 0.5
+	LLt = 200
+	NNt = 40
+	VVt = smooth_potential(ent, NNt, LLt, 1., 1., .6, 2)
+	a = system_solve(ent, VVt, NNt, LLt, ent, true)
+	sum(abs.(a))
 end
 
 # ╔═╡ c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
 # system_solve test cell
-begin
-	enen = 0.5
-	LL = 200
-	NN = 40
+# begin
+# 	enen = 0.5
+# 	LL = 200
+# 	NN = 40
 	
-	energies = 0.3:0.0141:1.
-	G = zeros(Float64, length(energies))
+# 	energies = 0.3:0.0141:1.
+# 	G = zeros(Float64, length(energies))
 	
-	for i in 1:length(energies)
-		VV 	 = smooth_potential(energies[i], NN, LL, 1., 1., .6, 2)
-		G[i] = system_solve(enen, VV, NN, LL, enen, true)[1]
-	end
-end
-
-# ╔═╡ 27f88666-6d5c-11eb-29ac-7d6d547fb68c
-G
-
-# ╔═╡ d91f47b4-6d5b-11eb-256a-7f9c3556c16f
-plot(G)
+# 	for i in 1:length(energies)
+# 		VV 	 = smooth_potential(energies[i], NN, LL, 1., 1., .6, 2)
+# 		G[i] = system_solve(enen, VV, NN, LL, enen, true)[1]
+# 	end
+# end
 
 # ╔═╡ 6bde2f84-6258-11eb-0e07-af0a2275fd79
 
@@ -674,9 +699,11 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╠═ef273a10-5f6e-11eb-386e-4df51c71d0b5
 # ╟─3d636042-61ff-11eb-1b22-9555285fe9af
 # ╟─3e467742-61ff-11eb-3640-8f313ff08354
+# ╠═47bf96ce-6f55-11eb-138c-a36bb49536a0
 # ╠═864da620-6239-11eb-0ecf-031e5c707948
 # ╠═4dedeecc-6246-11eb-00c7-014b87b08c32
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
+# ╠═88cd31c8-6f53-11eb-2452-ed4e129e73d3
 # ╠═b9d7ddd8-624a-11eb-1084-35320b3f9afb
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
@@ -692,8 +719,7 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═5ad541b0-64eb-11eb-0782-a59689a23af5
+# ╠═e27d74fe-6e6c-11eb-08d5-b988732170d0
 # ╠═c4dc25f6-66f3-11eb-2dd1-cf761b90ac63
-# ╠═27f88666-6d5c-11eb-29ac-7d6d547fb68c
-# ╠═d91f47b4-6d5b-11eb-256a-7f9c3556c16f
 # ╟─6bde2f84-6258-11eb-0e07-af0a2275fd79
 # ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
