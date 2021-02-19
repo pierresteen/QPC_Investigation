@@ -1,6 +1,6 @@
 # QPC_Investigation
 
-## Running *Julia* notebooks
+## Running *Pluto* notebooks
 
 Contents of the `/notebooks` folder are [*Pluto*](https://juliapackages.com/p/pluto) notebooks and can be run interactively.
 
