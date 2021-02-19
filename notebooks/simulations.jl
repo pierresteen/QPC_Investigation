@@ -16,12 +16,11 @@ end
 begin
 	using DelimitedFiles
 	using DataFrames
+	using LinearAlgebra
 end
 
-# ╔═╡ 864da620-6239-11eb-0ecf-031e5c707948
-using LinearAlgebra
-
 # ╔═╡ 7ee2fb54-433c-11eb-1f9b-3528ac7148a4
+
 md"""
 # Numerical solutions to the quantum transport problem in a 1D system
 
@@ -155,12 +154,12 @@ This allows us to evaluate the wave function of electrons in the system for the 
 
 A crude interpretaion of this struture is presented below:
 
-```
-( ) = lead nodes where with no scattering
+```julia
+( ) = lead nodes with no scattering
 (X) = scattering nodes (QPC area)
 ```
 
-```
+```julia
 +---------------------------------------------------------> (X)
 |		...	n-4	n-3	n-2	n-1  n 	n+1 n+2 n+3 n+4 ...
 |	( )	( )	( )	(X)	(X)	(X)	(X)	(X)	(X)	(X) ( )	( )	( )
@@ -191,6 +190,117 @@ $\psi_n(y)$
 # ╔═╡ 4ed78040-6f62-11eb-18dc-9f2c434ae7fa
 md"""
 ### Testing
+"""
+
+# ╔═╡ 7545065e-72e7-11eb-1db0-3df6683bcbeb
+md"""
+## CSV import functions
+To be able to quickly compare the numerial results obtained by *julia* and *numpy* at each step if the simulation, the functions below:
+
+```julia
+complexclean(string_in::String)
+
+csvcomplexparse(file_dir::String)
+```
+have been created.
+These allow us to quickly import a `.csv` numpy-complex-type array to julia.
+A conversion between the native numpy complex type using `j` and the *julian*:
+
+```julia
+Complex{Float64}
+```
+
+type is done through a string array intermediary, which is mapped to a clean julia-parsing compatible clean form array by:
+
+```julia
+complexclean(string_in::String)
+```
+
+The result of this is a grouped function that performs:
+
+```julia
+file_dir::String -> csvcomplexparse(file_dir)::Array{Complex{Float64},2}
+```
+
+"""
+
+# ╔═╡ b1c556a8-72e3-11eb-1299-8b52ae0c19b7
+"""
+	complexclean(string_in::String)
+
+Cleans incoming *numpy complex* formatted string and returns a clean string that can be **parsed** to a *julia* `Complex` type using:
+
+```
+parse(Complex{Float64}, string_parse)
+```
+"""
+function complexclean(string_in::String)
+	let
+		clean = ""
+		for char in string_in
+			if char == ' '
+				continue
+			elseif char == '(' || char == ')'
+				continue
+			elseif char == 'j'
+				clean *= "im"
+			else
+				clean *= char
+			end
+		end
+		return clean
+	end
+end
+
+# ╔═╡ 5e9936fa-72e5-11eb-078f-bd9e193eda1a
+"""
+	csvcomplexparse(file_dir::String)
+
+Maps an imported `Array{String,2}` type, from numpy via csv intermediary, cleaning and parsing, to an `Array{Complex{Float64},2}` type.
+
+`file_dir::String ->` location of csv stored numpy array
+"""
+function csvcomplexparse(file_dir::String)
+	stringy = CSV.File(file_dir, header=0) |> Tables.matrix
+	return map(complexclean, stringy)
+end
+
+# ╔═╡ 48ddfcd4-72ce-11eb-005b-93aab7b672bf
+md"""
+## Debugging
+
+The scattering matrices aren't lining up with the results obtained by Bas Nijholt when using the same method implemented in python.
+
+The issue looks like it originated from the the `sum_S()` function.
+Bas-Nijholt's `add_S()` function is as follows:
+
+```
+def add_S(S_1, S_2):
+    S11_1 = S_1[:N, :N]
+    S12_1 = S_1[:N, N:2*N]
+    S21_1 = S_1[N:2*N, :N]
+    S22_1 = S_1[N:2*N, N:2*N]
+
+    S11_2 = S_2[:N, :N]
+    S12_2 = S_2[:N, N:2*N]
+    S21_2 = S_2[N:2*N, :N]
+    S22_2 = S_2[N:2*N, N:2*N]
+
+    #return S11_1, S12_1, S21_1, S22_1
+    
+    inv_1 = np.linalg.inv(np.eye(N) - S11_2.dot(S22_1))
+    inv_2 = np.linalg.inv(np.eye(N) - S22_1.dot(S11_2))
+
+    S11 = S11_1 + S12_1.dot(inv_1).dot(S11_2).dot(S21_1)
+    S12 = S12_1.dot(inv_1).dot(S12_2)
+    S21 = S21_2.dot(inv_2).dot(S21_1)
+    S22 = S22_2 + S21_2.dot(inv_2).dot(S22_1).dot(S12_2)
+
+    return np.array(np.bmat([[S11, S12], [S21, S22]]))
+```
+
+I have tested the `sum_S()` *julia* implementation rigourously and it seems that the issue actually comes from the input S'es.
+
 """
 
 # ╔═╡ 4dedeecc-6246-11eb-00c7-014b87b08c32
@@ -262,51 +372,13 @@ Given a diagonal transfer matrix `T`, `S(T)`  constructs the correspondnig S-mat
 The output `S` is also a `2N`x`2N` matrix of `complex`, `float64` type values.
 """
 function S(T::T_data)
-	N = size(T.t_11)[1]
 	# evaluate s_ij blocks
-	s_11 = -((T.t_22)^-1 * T.t_21)
-	s_12 = (T.t_22)^-1
-	s_21 = T.t_11 - T.t_12 * (T.t_22)^-1 * T.t_21
-	s_22 = T.t_12 * (T.t_22)^-1
+	s_11 = -(inv(T.t_22) * T.t_21)
+	s_12 = inv(T.t_22)
+	s_21 = T.t_11 - T.t_12 * inv(T.t_22) * T.t_21
+	s_22 = T.t_12 * inv(T.t_22)
 	
-	# assemble S-matrix from s_ij blocks
-	S = zeros(Complex{Float64}, 2*N, 2*N)
-	S[1:N,1:N] 					= s_11
-	S[1:N,(N+1):(2*N)] 			= s_12
-	S[(N+1):(2*N),1:N] 			= s_21
-	S[(N+1):(2*N),(N+1):(2*N)] 	= s_22
-	
-	return S_data(S, s_11, s_12, s_21, s_22) # return ::S_data
-end;
-
-# ╔═╡ fce9afc0-624a-11eb-09e2-c38456a1fe35
-"""
-	sum_S(Sa, Sb)
-
-Sums two S-matrix data types (`::S_data`)
-"""
-function sum_S(Sa::S_data, Sb::S_data)
-	N = size(Sa.s_11)[1] # later add size equality Sa <-> Sb check
-	Id = Float64.(1 * Matrix(I, N, N))
-	
-	# intermediary variables for clarity of inverse calculations
-	inter1 = (Id - (Sb.s_11 * Sa.s_22))^-1
-	inter2 = (Id - (Sa.s_22 * Sb.s_11))^-1
-	
-	# evaluate new s_ij block values
-	s_11 = Sa.s_11 + Sa.s_12 * inter1 * Sb.s_11 * Sa.s_21
-	s_12 = Sa.s_12 * inter1  * Sb.s_12
-	s_21 = Sb.s_21 * inter2  * Sa.s_21
-	s_22 = Sb.s_22 * Sb.s_21 * inter2 * Sa.s_22 * Sb.s_12
-	
-	# assemble S-matrix from s_ij blocks
-	S = zeros(Complex{Float64}, (2*N), (2*N))
-	S[1:N, 1:N] 				= s_11
-	S[1:N, (N+1):(2*N)] 		= s_12
-	S[(N+1):(2*N), 1:N] 		= s_21
-	S[(N+1):(2*N), (N+1):(2*N)] = s_22
-	
-	return S_data(S, s_11, s_12, s_21, s_22) # return next S::S_data
+	return S_data([s_11 s_12; s_21 s_22], s_11, s_12, s_21, s_22)
 end;
 
 # ╔═╡ e27d74fe-6e6c-11eb-08d5-b988732170d0
@@ -336,33 +408,85 @@ begin
 	
 	#---------------
 	# add_S(S1, S2) test:
-	testsumS = sum_S(testS, testS)
-	test3 = sum(abs.(testsumS.self))
-	test3py = 183.40429233351034
-	#@assert test3 ≈ test3py
-	test3
+	# testsumS = sum_S(testS, testS)
+	# test3 = sum(abs.(testsumS.self))
+	# test3py = 183.40429233351034
+	# #@assert test3 ≈ test3py
+	# test3
 	
 	## sum_S(testS, testS) expansion
-	Id = Float64.(1 * Matrix(I, N, N))
+# 	Id = Float64.(1 * Matrix(I, N, N))
 	
-	inter1 = testS.s_11 * testS.s_22
-	inter2 = testS.s_22 * testS.s_11
-	# intermediary variables for clarity of inverse calculations
-	#inter1 = inv(Id - (testS.s_11 * testS.s_22))
-	#inter2 = inv(Id - (testS.s_22 * testS.s_11))
-	(sum(abs.(inter1)), sum(abs.(inter2)))
+# 	inter1 = testS.s_11 * testS.s_22
+# 	inter2 = testS.s_22 * testS.s_11
+# 	# intermediary variables for clarity of inverse calculations
+# 	#inter1 = inv(Id - (testS.s_11 * testS.s_22))
+# 	#inter2 = inv(Id - (testS.s_22 * testS.s_11))
+# 	(sum(abs.(inter1)), sum(abs.(inter2)))
 	
-	##
-	abs.(testT.self)
-	abs.(testS.self)
-	#writedlm( "testSjulia.csv",  abs.(testS.self), ',')
-	abs.(testsumS.self)
+# 	##
+# 	abs.(testT.self)
+# 	abs.(testS.self)
+# 	#writedlm( "testSjulia.csv",  abs.(testS.self), ',')
+# 	abs.(testsumS.self)
 	
-	# read in saved absolute value matrix of S from python
-	pyS = CSV.File("testSpy.csv") |> Tables.matrix
-	size(pyS)
-	@assert isapprox(abs.(testS.self), pyS, atol=0.165e-4)
+# 	# read in saved absolute value matrix of S from python
+# 	pyS = CSV.File("testSpy.csv") |> Tables.matrix
+# 	size(pyS)
+# 	@assert isapprox(abs.(testS.self), pyS, atol=0.165e-4)
+# 	sum(pyS), sum(abs.(testS.self)) ##  sums of S py and jl matrices are approx equal
+	
+# 	# comparing sum_S result for py and jl:
+# 	# sum_S(testS, testS)
+# 	pysumS = CSV.File("testsumSpy.csv") |> Tables.matrix
+# 	size(pysumS)
+# 	#@assert isapprox(abs.(testsumS.self), pysumS) # fails
+# 	abs.(testsumS.self), pysumS
+# 	## sum_S is failing
+# 	#testsumS.self
+# 	#writedlm( "testsumSjulia.csv", abs.(testsumS.self), ',')
+	
+# 	testnewsumS = sum_S(testS, testS)
+# 	testnewsumS
 end
+
+# ╔═╡ 5ee0b8da-72da-11eb-0ccf-c11a9d741a31
+begin
+	juliaT = testT.self
+	pyT = CSV.File("testT.csv") |> Tables.matrix
+	#@assert isapprox(abs.(juliaT), pyT, atol=1e-5)
+	abs.(juliaT)[1,1], pyT[1,1]
+	## it looks like T 'constructor' function behaves in the same way for jl and py
+	
+	
+end
+
+# ╔═╡ 6400ce8a-72d8-11eb-1f86-9326afd7e2b1
+
+
+# ╔═╡ faedfda0-72d7-11eb-0b80-7d63e962468d
+md"""
+### Ref. for `sum_S(...)`
+
+See equation §B6 in [Calculation of the conductance of a graphene sheet using the Chalker-Coddingtonnetwork model](https://journals-aps-org.libproxy.ucl.ac.uk/prb/pdf/10.1103/PhysRevB.78.045118).
+"""
+
+# ╔═╡ fce9afc0-624a-11eb-09e2-c38456a1fe35
+"""
+	sum_S(Sa, Sb)
+
+Sums two S-matrix data types (`::S_data`)
+"""
+function sum_S(Sa::S_data, Sb::S_data)
+	I = UniformScaling(1.)
+	
+	s_11 = Sa.s_11 + Sa.s_12 * inv(I - (Sb.s_11 * Sa.s_22)) * Sb.s_11 * Sa.s_21
+	s_12 = Sa.s_12 * inv(I - Sb.s_11 * Sa.s_22) * Sb.s_12
+	s_21 = Sb.s_21 * inv(I - Sa.s_22 * Sb.s_11) * Sa.s_21
+	s_22 = Sb.s_22 + Sb.s_21 * inv(I - Sa.s_22 * Sb.s_11) * Sa.s_22 * Sb.s_22
+	
+	return S_data([s_11 s_12; s_21 s_22], s_11, s_12, s_21, s_22)
+end;
 
 # ╔═╡ d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 """
@@ -707,11 +831,17 @@ Here, $H$ is the Hamiltonian operator and $\Sigma$
 # ╟─4ed78040-6f62-11eb-18dc-9f2c434ae7fa
 # ╠═4647aa28-6f68-11eb-327f-932db8a77f9d
 # ╠═e27d74fe-6e6c-11eb-08d5-b988732170d0
-# ╠═864da620-6239-11eb-0ecf-031e5c707948
+# ╠═5ee0b8da-72da-11eb-0ccf-c11a9d741a31
+# ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
+# ╠═b1c556a8-72e3-11eb-1299-8b52ae0c19b7
+# ╠═5e9936fa-72e5-11eb-078f-bd9e193eda1a
+# ╠═48ddfcd4-72ce-11eb-005b-93aab7b672bf
 # ╠═4dedeecc-6246-11eb-00c7-014b87b08c32
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
 # ╠═b9d7ddd8-624a-11eb-1084-35320b3f9afb
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
+# ╟─6400ce8a-72d8-11eb-1f86-9326afd7e2b1
+# ╟─faedfda0-72d7-11eb-0b80-7d63e962468d
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
 # ╠═d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 # ╠═095be506-64e5-11eb-3ac8-6dbf5a7f5f9e
