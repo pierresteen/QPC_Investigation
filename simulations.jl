@@ -587,6 +587,9 @@ function system_solve(μ, V, N, L, i, opt)
 	return G, τ, α, r, β
 end
 
+# ╔═╡ 9561719a-829c-11eb-3235-add5ff699ed5
+
+
 # ╔═╡ 7c8dd648-7dad-11eb-2d5e-69d011342fe8
 ## results test
 begin
@@ -951,6 +954,7 @@ noisy_plot = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
 # ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═5ad541b0-64eb-11eb-0782-a59689a23af5
+# ╠═9561719a-829c-11eb-3235-add5ff699ed5
 # ╠═7c8dd648-7dad-11eb-2d5e-69d011342fe8
 # ╟─6bde2f84-6258-11eb-0e07-af0a2275fd79
 # ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
