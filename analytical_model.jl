@@ -66,16 +66,9 @@ These models predict that the scattering of electron waves would produce phenome
 
 # ╔═╡ e3b09cdc-8002-11eb-2ace-11274a5d1f8d
 md"""
-## Impurity Scattering in Saddle-Point Potential:
+## Scattering
 
-In `simulations.jl` we explored the use of a CCN model to obtain numerical solutions for the quantised conductance of the QPC using a saddle-point potential profile model.
 
-In this notebook, we would like to solve the analytical forms directly, using tailored packages for differential equations, numerical integration and calculus problems.
-Useful packages:
-
-```julia
-DifferentialEquations.jl
-```
 """
 
 # ╔═╡ a0c33c02-8121-11eb-1c03-b529b28bdf5c
@@ -207,15 +200,19 @@ This makes for a __matrix eigenvalue problem__ which __can__ be solved directly 
 
 # ╔═╡ 17bcbb60-8264-11eb-3e5e-69d957bb36fd
 md"""
-## ...
+## Carrier Scattering in Quantum Wires
+
+### How to approach the problem?
+
+See P. Harrison _'QWWDTCP'_ references `[44 - 48]`, referenced on page 393 (375).
 
 """
 
 # ╔═╡ Cell order:
 # ╟─1ad5470c-8202-11eb-3c31-2940b4217974
 # ╟─e222372e-7f80-11eb-339b-0f92d080e55c
-# ╟─e3b09cdc-8002-11eb-2ace-11274a5d1f8d
+# ╠═e3b09cdc-8002-11eb-2ace-11274a5d1f8d
 # ╠═aec08616-8123-11eb-3b8e-a5db3738fdf0
 # ╟─a0c33c02-8121-11eb-1c03-b529b28bdf5c
-# ╟─21e31d78-81fb-11eb-3d9e-3308ccc1e6de
-# ╠═17bcbb60-8264-11eb-3e5e-69d957bb36fd
+# ╠═21e31d78-81fb-11eb-3d9e-3308ccc1e6de
+# ╟─17bcbb60-8264-11eb-3e5e-69d957bb36fd

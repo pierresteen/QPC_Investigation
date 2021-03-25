@@ -7,6 +7,7 @@ using InteractiveUtils
 # ╔═╡ 9cabcdd6-5e68-11eb-0613-9785eb761d6d
 begin
 	using PlutoUI
+	using Images
 	using QuadGK
 	using Plots
 	using CSV
@@ -113,9 +114,32 @@ begin
 	const ħ 	= 1.054571817e-34 	# (Js)
 	const h_eV 	= abs(h/e) 		 	# (eVs)
 	const ħ_eV 	= abs(ħ/e) 			# (eVs)
+	const ε_0	= 8.8541878128e-12	# (Fm^-1)
 end;
 
 # ╔═╡ 3d636042-61ff-11eb-1b22-9555285fe9af
+
+
+# ╔═╡ f74d6a68-61e9-11eb-0ed8-8bdd85177922
+md"""
+## Non-equilibrium Green function formalism (NEGF)
+
+The non-equilibrium Green function formalism approach to describing quantum transport in a channel which can be crossed ballistically, revolves around the following relationship:
+
+$E[\psi] = [H][\psi] = [\Sigma][\psi] + [s]$
+
+which in fact a compact form of the following matrices:
+
+![NGEF1](https://imgur.com/vBMNpYr.png)
+
+Here, $H$ is the Hamiltonian operator and $\Sigma$ is the self-energy matrix of the connecting leads (drain and source).
+
+Import for us to remember, is that ``s`` is the __scattering matrix__.
+
+We will be using ``s`` along with numerically generated Hamiltonian operators to solve for the wavefuntions of the system and therefore characterise the quantum transport, finally solving for the conductance ``G`` (more on this later).
+"""
+
+# ╔═╡ 6520a3e8-8d82-11eb-3cb0-dbc6713dc7d2
 
 
 # ╔═╡ 3e467742-61ff-11eb-3640-8f313ff08354
@@ -177,15 +201,15 @@ A crude interpretaion of this struture is presented below:
 V
 (Y)
 ```
-
-The wave functions of each column are represented by:
-
-$\psi_n(y)$
 """
+
+# ╔═╡ 9fb6d210-8d83-11eb-0590-e16bf8468dae
+
 
 # ╔═╡ adaf3546-72f4-11eb-0b21-e7466c2d81be
 md"""
-### Data Structures
+# Simulation
+## Custom Data Types
 """
 
 # ╔═╡ 4dedeecc-6246-11eb-00c7-014b87b08c32
@@ -219,6 +243,9 @@ struct S_data
 end;
 
 # ╔═╡ b06e326c-72f6-11eb-204a-ef48d6cbf876
+"""
+**Solution parameter type**
+"""
 struct Sys_sol
 	G
 	τ
@@ -227,12 +254,38 @@ struct Sys_sol
 	β
 end;
 
-# ╔═╡ 7158aa22-72f5-11eb-246b-3bb16136c59c
-
-
-# ╔═╡ 70e21632-72f5-11eb-341e-0f121cf27eac
+# ╔═╡ 3cf41550-834e-11eb-1997-99d861892e35
 md"""
-### Simulation Functions
+## System 'Constructor' Functions 
+
+### Transfer Matrices
+
+The matrix ``T`` operates on discrete wave functions as:
+
+```math
+\begin{bmatrix}
+	\psi_{n+1}\\
+	t\psi_{n}\\
+\end{bmatrix}
+= T
+\begin{bmatrix}
+	\psi_{n}\\
+	t\psi_{n-1}\\
+\end{bmatrix}
+```
+
+where:
+
+```math
+T =
+\begin{bmatrix}
+	t^{-1}H & -1\\
+	t & 0\\
+\end{bmatrix}
+```
+
+Transfer matrices can be evaluated locally and for the entire system without the need for iteration over all nodes.
+
 """
 
 # ╔═╡ 06038796-6234-11eb-3dd3-cf25a7095963
@@ -265,7 +318,55 @@ function T(μ, N)
 	T[(N+1):(2*N),(N+1):(2*N)] 	= t_22
 	
 	return T_data(T, t_11, t_12, t_21, t_22) # return ::T_data
-end;
+end
+
+# ╔═╡ d15c21b8-8350-11eb-0a17-916ab9ab4c48
+md"""
+### Scattering Matrices
+
+This matrix relates the initial state to the final state by:
+
+```math
+\begin{bmatrix}
+	B\\
+	C\\
+\end{bmatrix}
+=
+\begin{bmatrix}
+	S_{11} & S_{12}\\
+	S_{21} & S_{22}\\
+\end{bmatrix}
+\begin{bmatrix}
+	B\\
+	C\\
+\end{bmatrix}
+```
+
+Where ``S`` is the complete scattering matrix in the relation:
+
+```math
+S =
+\begin{bmatrix}
+	S_{11} & S_{12}\\
+	S_{21} & S_{22}\\
+\end{bmatrix}
+\quad
+\Psi_{out} =
+\begin{bmatrix}
+	B\\
+	C\\
+\end{bmatrix}
+\quad
+\Psi_{in} =
+\begin{bmatrix}
+	A\\
+	D\\
+\end{bmatrix}
+```
+```math
+\Psi_{out} = S \Psi_{in}
+```
+"""
 
 # ╔═╡ 41a9c7cc-6245-11eb-148b-3791b3fb504c
 """
@@ -283,13 +384,13 @@ function S(T::T_data)
 	s_22 = T.t_12 * inv(T.t_22)
 	
 	return S_data([s_11 s_12; s_21 s_22], s_11, s_12, s_21, s_22)
-end;
+end
 
 # ╔═╡ faedfda0-72d7-11eb-0b80-7d63e962468d
 md"""
-To reference: `sum_S(Sa, Sb)` see equation §B6:
+Reference to: `sum_S(Sa, Sb)` function, see equation §B6:
 
-[Calculation of the conductance of a graphene sheet using the Chalker-Coddingtonnetwork model](https://journals-aps-org.libproxy.ucl.ac.uk/prb/pdf/10.1103/PhysRevB.78.045118).
+[Calculation of the conductance of a graphene sheet using the Chalker-Coddington network model](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.78.045118).
 """
 
 # ╔═╡ fce9afc0-624a-11eb-09e2-c38456a1fe35
@@ -307,7 +408,7 @@ function sum_S(Sa::S_data, Sb::S_data)
 	s_22 = Sb.s_22 + Sb.s_21 * inv(I - Sa.s_22 * Sb.s_11) * Sa.s_22 * Sb.s_12
 	
 	return S_data([s_11 s_12; s_21 s_22], s_11, s_12, s_21, s_22)
-end;
+end
 
 # ╔═╡ d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 """
@@ -322,7 +423,7 @@ function gen_S_total(V, L)
 		S_T = sum_S(S_T, S(T(V[:,j], size(V)[1])))
 	end
 	return S_T
-end;
+end
 
 # ╔═╡ 095be506-64e5-11eb-3ac8-6dbf5a7f5f9e
 """
@@ -336,58 +437,19 @@ function prod_T(x::T_data, y::T_data)
 			 	  (x.t_12 * y.t_12),
 				  (x.t_21 * y.t_21),
 			 	  (x.t_22 * y.t_22))
-end;
-
-# ╔═╡ 08169170-64e3-11eb-3fbe-6b50b31ee02f
-"""
-	gen_S_total_opt(V, L)
-
-Mutliple dispatch for multiplying two objects `::T_data` composed of a `self` matrix and four sub-matrix blocks `T_ij`, optional method for use in the case of non multiples-of-ten sized networks.
-"""
-function gen_S_total_opt(V, L)
-	# define transfer and scattering total matrices
-	T_Topt = T(V[:,1], size(V)[1])
-    S_Topt = S(T(V[:,1], size(V)[1]))
-	
-	@assert mod(L, 10) == 0
-	for j in 1:L
-		if mod(j, 10) != 0
-			T_Topt = prod_T(T(V[:, j], size(V)[1]), T_Topt)
-		else
-			S_tot = sum_S(S_Topt, S(T_Topt))
-            T_Topt = T(V[:, j], size(V)[1])
-		end
-	end
-	
-	return S_Topt
-end;
-
-# ╔═╡ fe16d518-64e7-11eb-04f5-bb25ed0a9eea
-function smooth_potential_broken(μ, N, L, xL=1.,yL=1., amp=1., profile=1)
-	# create empty network domain, spaced xy-axis points
-	V  = zeros(Float64, N, L)
-	px = Float64.(range(-xL, xL, length=L))
-	py = Float64.(range(-yL, yL, length=N))
-	
-	# populate V according to potential distribution model choice `prof`
-	if profile == 1
-		for i in 1:length(px)
-			for j in 1:length(py)
-				V[j,i] = abs(amp)*(px[i]^2 - py[j]^2) + μ
-			end
-		end
-	elseif profile == 2
-		for i in 1:length(px)
-			for j in 1:length(py)
-				V[j,i] = -0.5 * amp * (tanh(py[j]^2 - px[i]^2) + 1) + μ
-			end
-		end
-	end
-	
-	return px, py, V
 end
 
+# ╔═╡ b3fb891c-8d83-11eb-31d8-3fea8e634889
+md"""
+## System Energy Calculations
+"""
+
 # ╔═╡ 212d911a-7dc3-11eb-11ee-333220a641e5
+"""
+	meshgrid(x, y)
+
+Generates a 2D meshgrid, same functionality as MATLAB meshgrid function.
+"""
 function meshgrid(x, y)
     X = [i for i in x, j in 1:length(y)]
     Y = [j for i in 1:length(x), j in y]
@@ -396,9 +458,9 @@ end
 
 # ╔═╡ 9ff7af7e-7dc2-11eb-17b8-e7fe576888c4
 """
-	smooth_potential(μ, N, L, xL=1.,yL=1., h=1., prof=1)
+	smooth_potential_broken(μ, N, L, xL=1.,yL=1., amp=1., profile=1)
 
-Creates a smooth potential profile for the model.
+Generates a smooth saddle-point potential profile for system ef dimensions `width = N` and `length = L`.
 """
 function smooth_potential(μ, N, L, xL=1.,yL=1., amp=1.)
 	px = Float64.(range(-xL, xL, length=N))
@@ -409,40 +471,53 @@ function smooth_potential(μ, N, L, xL=1.,yL=1., amp=1.)
 	return (-0.5 * amp) * (tanh.(X.^2 - Y.^2) .+ 1) .+ μ
 end
 
+# ╔═╡ 91b4b744-8328-11eb-017b-6153bb61cfb2
+"""
+	place_impurity(grid_pot, loc_x, loc_y)
+
+Generates a point charge impurity at `(loc_x, loc_y)` in an otherwise smooth potential  profile domain.
+"""
+function place_impurity(grid_pot, loc_x, loc_y)
+	map_size = size(grid_pot)
+	mesh_size = zeros(Float64, map_size[1], map_size[2])
+	
+	# check that impurity locations provided are within network graph
+	@assert all((loc_x, loc_y) .<= map_size)
+	@assert all((loc_x, loc_y) .>= (1,1))
+	for i in 1:map_size[1], j in 1:map_size[2]
+		r = sqrt((loc_x - i)^2 + (loc_y - j)^2)
+		V = abs(1/(4*pi*ε_0) * (e/r))
+		if V == Inf
+			mesh_size[i,j] = 10
+		else
+			mesh_size[i,j] = V
+		end
+	end
+	
+	return grid_pot + mesh_size
+end
+
+# ╔═╡ a1f94578-8d84-11eb-1de6-03bab5d1e34e
+md"""
+### Scattering Error
+"""
+
 # ╔═╡ 6b63b052-64eb-11eb-1a62-33262062ece1
 """
 	error_ϵ(S::S_data, T::T_data)
 
 Method which evaluates the model error from `S:S_data` and `T::T_data`.
 """
-function error_ϵ(S::S_data, T::T_data)
-	return norm(S.self * conj(T.self) - (1 * Matrix(I, size(S.self)[1], size(S.self)[2])))
+function error_ϵ(S::S_data)
+	return norm(S.self * conj(S.self') - UniformScaling(1.))
 end
 
-# ╔═╡ 8ef3c6e0-72f3-11eb-3244-1f406e6bde18
-md"Potential plot beneath ↓"
+# ╔═╡ deb49ea2-8d85-11eb-34ed-7b71e4b3cef8
 
-# ╔═╡ 629a9616-625c-11eb-0e76-536b5de36ab7
-begin
-# 	Vsg = -0.1
-# 	# network dimensions and potential ranges
-# 	V 	= zeros(Float64, 40, 100)
-# 	px 	= range(-5., 5., length=100)
-# 	py 	= range(-5., 5., length=40)
-	
-# 	# map saddle-point potential profile to network matrix V
-# 	for i in 1:length(px)
-# 		for j in 1:length(py)
-# 			V[j,i] = abs(Vsg)*(px[i]^2 - py[j]^2)
-# 		end
-# 	end
-	#ptest = surface(px, py, V, xlabel="Y", ylabel="X", zlabel="Z", title="Potential barrier profile")
-	# uncomment above to show plot
-end
 
 # ╔═╡ 2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 md"""
-### Solving numerically
+## Numerical Transport Calculation
 
 The matrix $S$  is calcuated by solving the following system of equations:
 
@@ -457,6 +532,11 @@ The conductance of the system is given by Landauer's eq.:
 
 $G = G_0\ \Sigma_{i,j} |s_{ij}|^2$
 
+"""
+
+# ╔═╡ c2f6b348-8d84-11eb-2b07-d585477a2f50
+md"""
+### Numerical Solve Utils
 """
 
 # ╔═╡ 210393f2-65ad-11eb-3dc0-0bcab1b97c73
@@ -489,9 +569,145 @@ function pickoutᵢ(λ_values, mode)
 	return Array(arrᵢ)
 end
 
-# ╔═╡ 5ad541b0-64eb-11eb-0782-a59689a23af5
+# ╔═╡ ce242db8-8d84-11eb-1f4d-532062e2cb6d
 """
-	system_solve(μ, V, L, i, opt)
+	ψ_classify(λ_vec, λ_val)
+
+Classifies eigenvectors and eigenvalues into categories to form the potential barrier-type problem to set up the NEGF form.
+"""
+function ψ_classify(λ_vec, λ_val)
+	# sort waves by: right-moving, left-moving and evanescent
+	Rᵢ = pickoutᵢ(λ_val, "R")
+	Lᵢ = pickoutᵢ(λ_val, "L")
+	Eᵢ = pickoutᵢ(λ_val, "E")
+	
+	# index evanescent waves which are growing: $Gᵢ or decaying: $Dᵢ
+	Gᵢ = pickoutᵢ(λ_val[Eᵢ], "G")
+	Dᵢ = pickoutᵢ(λ_val[Eᵢ], "D")
+	
+	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
+	# which are a numerical representation of the system's wave fucntions
+	ψ_R = λ_vec[:, Rᵢ]
+	ψ_L = λ_vec[:, Lᵢ]
+	E_G = λ_vec[:, Eᵢ][:, Gᵢ]
+	E_D = λ_vec[:, Eᵢ][:, Dᵢ]
+	
+	return ψ_R, ψ_L, E_G, E_D
+end
+
+# ╔═╡ 76e232ba-8d85-11eb-1e66-d7243264b5ed
+"""
+	build_Uᵣ(N, Sₜ, ψᵣ)
+
+Builds the right-hand side terms of the NEGF form. 
+"""
+function build_Uᵣ(N, Sₜ, ψᵣ)
+	Uᵣ_top = Sₜ.s_11 * ψᵣ[1:N, :] - ψᵣ[(N+1):(2*N), :]
+	Uᵣ_bot = Sₜ.s_21 * ψᵣ[1:N, :]
+
+	return vcat(Uᵣ_top, Uᵣ_bot)
+end
+
+# ╔═╡ 8c858216-8d85-11eb-27d5-710e5153ba7a
+"""
+	build_Uₗ(N, Sₜ, ψᵣ, ψₗ, grow, decrease)
+
+Builds the left-hand side terms of the NEGF form.
+"""
+function build_Uₗ(N, Sₜ, ψᵣ, ψₗ, grow, decrease)
+	Uₗ_t1 = - Sₜ.s_12 * ψᵣ[(N+1):(2*N), :]
+	Uₗ_t2 = grow[(N+1):(2*N), :] - (Sₜ.s_11 * grow[1:N, :])
+	Uₗ_t3 = ψₗ[(N+1):(2*N), :] - (Sₜ.s_11 * ψₗ[1:N, :])
+	Uₗ_t4 = - Sₜ.s_12 * decrease[(N+1):(2*N), :]
+
+	Uₗ_b1 = ψᵣ[1:N,:] - (Sₜ.s_22 * ψᵣ[(N+1):(2*N), :])
+	Uₗ_b2 = - Sₜ.s_21 * grow[1:N, :]
+	Uₗ_b3 = - Sₜ.s_21 * ψₗ[1:N,:]
+	Uₗ_b4 = decrease[1:N, :] - Sₜ.s_22 * decrease[(N+1):(2*N), :]
+
+	Uₗ_top = hcat(Uₗ_t1, Uₗ_t2, Uₗ_t3, Uₗ_t4)
+	Uₗ_bot = hcat(Uₗ_b1, Uₗ_b2, Uₗ_b3, Uₗ_b4)
+
+	return vcat(Uₗ_top, Uₗ_bot)
+end
+
+# ╔═╡ 2954131a-8d85-11eb-1862-bdef8e49a509
+"""
+	system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
+
+As the name implies, the function serves to simplify the numerical algorithm.
+
+```julia
+system_intermediary(Uᵣ, Uₗ, ψ_L, E_D) -> coeffs::Array{Complex{Float64},2}, count_in::Int, count_evan::Int
+```
+"""
+function system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
+	coeffs = inv(Uₗ) * Uᵣ		# coefficients matrix
+	
+	count_in 	= size(ψ_L)[2]	# number of incident waves
+	count_evan 	= size(E_D)[2]	# number of evanescent waves
+	
+	return coeffs, count_in, count_evan
+end
+
+# ╔═╡ 7186dc7e-8d85-11eb-3429-3bbc1f4ab65b
+"""
+	resolve(coeffs, count_in, count_ev)
+
+Solutions resolver functions, final step in the numerical algorithm.
+"""
+function resolve(coeffs, count_in, count_ev)
+	τ = coeffs[1:(count_in), :]
+	α = coeffs[(count_in+1):(count_in+count_ev), :]
+	r = coeffs[(count_in+count_ev+1):(2*count_in+count_ev), :]
+	β = coeffs[(2*count_in+count_ev+1):(2*count_in+2*count_ev), :]
+	
+	G = norm(τ)^2 # final coductance calculation
+	
+	return G, τ, α, r, β
+end
+
+# ╔═╡ c3d2dafc-8d85-11eb-1927-0ffa6df786db
+md"""
+## Numerical Solve Algorithm
+"""
+
+# ╔═╡ 3875774a-8d87-11eb-321a-0f74a8dc4c73
+md"""
+## Simulation Results
+"""
+
+# ╔═╡ d9c8aba0-8d87-11eb-253b-6b768572d1bc
+e
+
+# ╔═╡ 47f47e16-8d87-11eb-2734-fbe36fd94431
+begin
+	N = 40
+	L = 100
+	μ = 0.4
+end
+
+# ╔═╡ 0a306d9c-8d85-11eb-3ceb-737958085066
+"""
+	ψ_norms(ψR, ψL)
+
+Calculates and applies norming factors to wavefunctions `ψ_R` and `ψ_L`.
+"""
+function ψ_norms(ψR, ψL)
+	# evaluate wave function norms $ψₙ_R & $ψₙ_L
+	ψₙ_R = norm(ψR[(N+1):2*N]).^2 - norm(ψR[1:N]).^2
+	ψₙ_L = norm(ψL[1:N]).^2 - norm(ψL[(N+1):2*N]).^2
+	
+	# apply norming factors to wave funtions
+	ψ_R = ψR ./ √(abs(ψₙ_R))
+	ψ_L = ψL ./ √(abs(ψₙ_L))
+	
+	return ψ_R, ψ_L
+end
+
+# ╔═╡ cffd655e-8d85-11eb-262c-c35e8d38a7d1
+"""
+	system_solve(μ, V, N, L, i, opt)
 	
 Algorithm for solving the system of equations of the "Chalker-Coddington Network Model" of a 1D QPC...
 """
@@ -504,144 +720,225 @@ function system_solve(μ, V, N, L, i, opt)
 	end
 	
 	# extract eigenvectors & eigenvalues from T::T_data.self
-	λ = eigen(T(μ, N).self, sortby=nothing)
+	λ = eigen(T(μ, N).self, sortby=nothing, permute=true)
+	
 	# round eigen-components to 11 decimal places
-	λ_vals = round.(λ.values, digits=11)	
-	λ_vecs = round.(λ.vectors, digits=11)
+	λ_vals = round.(λ.values, digits=10)
+	λ_vecs = -1 .* round.(λ.vectors, digits=10)
 
-	# extract indices from:
-	# 	forward & backward propagating waves
-	# 	evanescent growing & decaying waves
-	Rᵢ = pickoutᵢ(λ_vals, "R")
-	Lᵢ = pickoutᵢ(λ_vals, "L")
-	Eᵢ = pickoutᵢ(λ_vals, "E")
-	
-	# index evanescent waves which are growing: $Gᵢ or decaying: $Dᵢ
-	Gᵢ = pickoutᵢ(λ_vals[Eᵢ], "G")
-	Dᵢ = pickoutᵢ(λ_vals[Eᵢ], "D")
-	
-	# index $λ_vec to form ψ and E (evanescent) R-, L-mode & G-, D-mode wave arrays
-	# which are a numerical representation of the system's wave fucntions
-	ψ_R = λ_vecs[:, Rᵢ]
-	ψ_L = λ_vecs[:, Lᵢ]
-	E_G = λ_vecs[:, Eᵢ][:, Gᵢ]
-	E_D = λ_vecs[:, Eᵢ][:, Dᵢ]
-	
-	# evaluate wave function norms $ψₙ_R & $ψₙ_L
-	ψₙ_R = norm(ψ_R[(N+1):2*N]).^2 - norm(ψ_R[1:N]).^2
-	ψₙ_L = norm(ψ_L[1:N]).^2 - norm(ψ_L[(N+1):2*N]).^2
-	
-	# apply norming factors to wave funtions
-	ψ_R = ψ_R ./ √(abs(ψₙ_R))
-	ψ_L = ψ_L ./ √(abs(ψₙ_L))
-	#-- passes until here!!
-	
-	## formulate system of equations with grouped wave terms: ##
-	
-	# $Uₗ_top, create & append to fill 4N sized array
-	lt1 = -S_T.s_12 * ψ_R[(N+1):(2*N),:]
-	lt2 = E_G[(N+1):(2*N),:] - (S_T.s_11 * E_G[1:N,:])
-	lt3 = ψ_L[(N+1):(2*N),:] - (S_T.s_11 * ψ_L[1:N,:])
-	lt4 = -S_T.s_12 * E_D[(N+1):(2*N),:]
-	Uₗ_top = hcat(lt1, lt2, lt3, lt4)
-	#-- passes but Uₗ_top ≠ python(eqiuv. Uₗ_top)
+	# sort and index: ψ_R & ψ_L (un-normed) + E_G & E_D (growing and decreasing)
+	ψ_R, ψ_L, E_G, E_D = ψ_classify(λ_vecs, λ_vals)
 
-	# $Uₗ_bot, create & append to fill 4N sized array
-	Uₗ_bot = ψ_R[1:N,:] - (S_T.s_22 * ψ_R[(N+1):(2*N),:])
-	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * E_G[1:N,:], dims=2)
-	Uₗ_bot = cat(Uₗ_bot, -S_T.s_21 * ψ_L[1:N,:], dims=2)
-	Uₗ_bot = cat(Uₗ_bot, E_D[1:N,:] - S_T.s_22 * E_D[(N+1):(2*N),:], dims=2)
-	#-- passes until here
+	# evaluate and apply ψ norms
+	ψ_R, ψ_L = ψ_norms(ψ_R, ψ_L)
 	
-	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uₗ = zeros(Complex{Float64}, 2*N, 2*N)
-	Uₗ[1:N,:] 		  = Uₗ_top
-	Uₗ[(N+1):(2*N),:] = Uₗ_bot
-	#-- passses until here
-
-	# $Uᵣ_top & $Uᵣ_bot create 4N sized arrays
-	Uᵣ_top = S_T.s_11 * ψ_R[1:N,:] - ψ_R[(N+1):(2*N),:]
-	Uᵣ_bot = S_T.s_21 * ψ_R[1:N,:]
-	
-	# assemble $Uₗ_top & $Uₗ_bot into $Uₗ, the total eq.-system matrix
-	Uᵣ = vcat(Uᵣ_top, Uᵣ_bot)
+	# form system of equation right- and left-hand side terms
+	Uₗ = build_Uₗ(N, S_T, ψ_R, ψ_L, E_G, E_D)
+	Uᵣ = build_Uᵣ(N, S_T, ψ_R)
 	
 	# evaluate coefficient and store in matrix form
-	coeff = (Uₗ^1)' * Uᵣ
+	coeff, num_I, num_E = system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
 	
-	# find the number of wave types from size of wavefunction and evanescent matrices
-	num_I = size(ψ_L)[2]	# number of incident waves
-	num_E = size(E_D)[2]	# number of evanescent waves
+	# evaluate system solutions
+	solution_params = resolve(coeff, num_I, num_E)
 	
-	# extract solution parameters from coefficients matrix
-	τ = coeff[1:(num_I), :]
-	α = coeff[(num_I):(num_I+num_E), :]
-	r = coeff[(num_I+num_E):(2*num_I+num_E), :]
-	β = coeff[(2*num_I+num_E):(2*num_I+2*num_E), :]
-	
-	# calculate conductance G:
-	G = norm(τ)^2
-	
-	#test  = sum(abs.(τ).^2 + abs.(r).^2)
-	#test2 = round(sum(test) / length(test), digits=5)
-	return G, τ, α, r, β
+	return solution_params
 end
 
-# ╔═╡ 9561719a-829c-11eb-3235-add5ff699ed5
-
-
-# ╔═╡ 7c8dd648-7dad-11eb-2d5e-69d011342fe8
-## results test
+# ╔═╡ 3fd81744-8d87-11eb-3366-3d51632a9043
 begin
-	enen = 0.5
-	LL = 200
-	NN = 40
-	
-	energies = 0.3:0.0141:1.
-	G = zeros(Float64, length(energies))
-	
-	for i in 1:length(energies)
-		VV = smooth_potential(energies[i], NN, LL, 1., 1., .6)
-		G[i] = system_solve(enen, VV, NN, LL, enen, false)[1]
+	G = []
+	energies = range(0.5, 1, length=50)
+	for en in energies
+		V = smooth_potential(en, N, L, 1., 1., 0.4)
+		push!(G, system_solve(en, V, N, L, en, false)[1])
 	end
-	plot(energies, G)
-	# close but not quite there yet, something about the oscillation of G isn't right
 end
 
-# ╔═╡ 6bde2f84-6258-11eb-0e07-af0a2275fd79
+# ╔═╡ 53ddbc9c-8d87-11eb-050e-11c509947dbf
+plot(energies, G, leg=false)
+
+# ╔═╡ 13339302-8d86-11eb-3f98-ad0482c5121a
+
+
+# ╔═╡ f195457c-7dce-11eb-1326-83ed59d18879
+md"""
+## Experimental Impurity Data:
+The data represents a shift in the QPC channel from left to right which is obtained by applying a differential voltage on left and right split gates, here, -0.1 V and 0.1 V respectively.
+Data is seperated into **`clean`** & **`noisy`**.
+
+---
+**Labels:**
+
+**`splitgate_V ->`** voltage applied across the split-gate to bias channel to the 'right'.
+
+**`conductance ->`** **G** (μS) measured across QPC channel
+
+---
+**Properties:**
+
+**`clean ->`** no impurities in QPC channel
+
+**`noisy ->`** impurities present in channel (varying types, further analyis on this needed)
+
+---
+"""
+
+# ╔═╡ 552aa3e0-7dd2-11eb-399e-ad5fc208fbc5
+md"""
+### Data Import:
+"""
+
+# ╔═╡ 854b06e2-87fc-11eb-1d4a-058609b638d3
+md"""
+## Aims and Objectives:
+__I want to be able to:__
+1. plot simulated 'clean' conductance of a QPC alongside the experimental results
+   - deduce the errors in the simulated 'clean' results from the experimental ones
+   - introduce compensation term into 'clean' sim to _tune_ results for accuracy
+2. plot simulated 'noisy' conductance of a QPC alongside the experimental results
+   - deduce the errors in the simulated 'noisy' results from the experimental ones
+   - introduce compensation term into 'noisy' sim to _tune_ results for accuracy
+"""
+
+# ╔═╡ 8e92f6f4-8353-11eb-30ca-c3d79597943a
+
+
+# ╔═╡ e63f0386-8353-11eb-0334-3b77fcc24f3a
+md"""
+## Electron Energy in Confined Systems
+
+In a system with in-plane dispersion in the xy-plane, and confinement in the z-axis, as illustrated below:
+
+$(load("./mdsrc/ipd.png"))
+
+the in-plane wavefunctions of an electron: ``\psi_{x,y}`` will solve (IIF it is assumed that the plan is infite) to reflect the current flow properties as:
+
+```math
+\psi_{x,y}(x,y) = \frac{1}{A}\exp[i(k_{x} x + k_{y} y)]
+```
+
+In the restricted dimension, along the z-axis, the wavefunction ``\psi_{z}`` takes the form of a sinusoid when cosidering the confining potential as perfect i.e infinite outside the plane and zero inside the plane gap.
+Further consideration of the boundary problem refines the solution to:
+
+```math
+\psi_{n}(z) = \sqrt{\frac{2}{l_w}}\sin\left(\frac{\pi n z}{l_w}\right)
+```
+
+Observe how the wavefunction in the confined dimension has become discretised in the quantum number ``n``.
+
+We can also find the energy components in the ``x`` and ``y`` dimensions as:
+
+```math
+E_{x} = \frac{\hbar^2 k_{x}^2}{2m}
+```
+```math
+E_{y} = \frac{\hbar^2 k_{y}^2}{2m}
+```
+
+and for the confined dimension:
+
+```math
+E_{z} = E_{n} = \frac{\hbar^2 \pi^2 n^2}{2 m l_w^2}.
+```
+
+This results in a total system (electron) energy given as:
+
+```math
+E = E_{n} + \frac{\hbar^2 | \vec{k}_{x,y} |^2}{2m^*}
+```
+
+in accordance to the effective mass theorem which gives us the electron mass in the material as ``m^*``.
+
+"""
+
+# ╔═╡ 7540e066-8338-11eb-0649-8b78be00ce4d
+md"""
+## Matrix Solutions of the Discretised Schrodinger Equation
+
+### Discretised Schrodinger Equation:
+
+Under *effective electron mass and envelope function approximations*, the discretised Schrodinger equation is:
+
+```math
+-\frac{\hbar^2}{2m^*}\left[\frac{\psi(z+\delta z) - 2\psi(z) + \psi(z - \delta z)}{(\delta z)^2}\right] + V(z)\psi(z) = E\psi(z) \quad (1)
+```
+
+We rearrange it into the form:
+
+```math
+a\psi(z - \delta z) - b(z)\psi(z) + c\psi(z + \delta z) = E\psi(z)  \quad (2)
+```
+```math
+a = c = -\frac{\hbar^2}{2m^* (\delta z)^2} \quad b(z) = \frac{\hbar^2}{m^* (\delta z)^2} + V(z)
+```
+
+### Matrix Formulation:
+
+We have a discretised ``z`` dimension, of size ``N``.
+Start by rewriting ``(2)`` as:
+
+```math
+a_i \psi_{i-1}- b_i \psi_i + c_i \psi_{i+1} = E\psi_i  \quad (3)
+```
+
+Here, ``i``  represents the *index* of each sample of of ``\psi`` in the discretised dimension ``z``.
+We also rewrite the coefficients as:
+
+```math
+a_{i+1} = c_i = -\frac{\hbar^2}{2m^* (\delta z)^2} \quad b_i = \frac{\hbar^2}{m^* (\delta z)^2} + V(z)
+```
+
+The boundary conditions, ``\psi_0 = \psi_{N+1} = 0`` represent the first set of points outside of the system.
+We can now express ``(3)`` at each sample in the system as a linear system of equations:
+
+```math
+a_1 \psi_{0} - b_1 \psi_1 + c_1 \psi_{2} = E\psi_1
+```
+```math
+a_2 \psi_{1} - b_2 \psi_2 + c_2 \psi_{3} = E\psi_2
+```
+```math
+\dots
+```
+```math
+a_{N} \psi_{N-1} - b_{N} \psi_{N} + c_{N} \psi_{N+1} = E\psi_{N}
+```
+
+We can clearly see that we can turn this into a system of the form ``H\psi = E\psi``, where ``H`` is:
+
+```math
+H =
+\begin{bmatrix}
+	b_1 & c_1 & 0 & \dots & 0\\
+	a_2 & b_2 & c_2 & \dots & 0\\
+	0 & \ddots & \ddots & \ddots & 0\\
+	\vdots & \dots & a_{N-1} & b_{N-1} & c_{N-1}\\
+	0 & \dots & 0 & a_{N} & b_{N}\\
+\end{bmatrix}
+\quad (4)
+```
+
+and ``\psi`` is a vectors containing all wave functions at the sampling points:
+
+```math
+\psi = [\psi_1, \psi_2, \dots, \psi_{N}]^T
+```
+
+### Solving by Eigenvalue Decomposition:
+
+This makes for a __matrix eigenvalue problem__ which __can__ be solved directly to locate _all_ the energies of the system simultaneously, along with the corresponding wave functions.
+
+"""
+
+# ╔═╡ f6c12ba2-8d86-11eb-3060-77aa104ab877
 
 
 # ╔═╡ 7545065e-72e7-11eb-1db0-3df6683bcbeb
 md"""
-## Debugging
+# Debugging Utils
 
-To be able to quickly compare the numerial results obtained by *julia* and *numpy* at each step if the simulation, the functions below:
-
-```julia
-complexclean(string_in::String)
-
-csvcomplexparse(file_dir::String)
-```
-have been created.
-These allow us to quickly import a `.csv` numpy-complex-type array to julia.
-A conversion between the native numpy complex type using `j` and the *julian*:
-
-```julia
-Complex{Float64}
-```
-
-type is done through a string array intermediary, which is mapped to a clean julia-parsing compatible clean form array by:
-
-```julia
-complexclean(string_in::String)
-```
-
-The result of this is a grouped function that performs:
-
-```julia
-file_dir::String -> csvcomplexparse(file_dir)::Array{Complex{Float64},2}
-```
-
+This section contains functions that were built and used in order to debug the above algorthims, using imported and converted python generated results as ground-truths to test against.
 """
 
 # ╔═╡ b1c556a8-72e3-11eb-1299-8b52ae0c19b7
@@ -676,9 +973,11 @@ end
 """
 	csvcomplexparse(file_dir::String)
 
+__Complex *matrix* debug import tool!__
+
 Maps an imported `Array{String,2}` type, from numpy via csv intermediary, cleaning and parsing, to an `Array{Complex{Float64},2}` type.
 
-`file_dir::String ->` location of csv stored numpy array
+`file_dir::String ->` location of csv stored numpy array.
 """
 function csvcomplexparse(file_dir::String)
 	strs = CSV.File(file_dir, header=0) |> Tables.matrix |> x -> map(complexclean, x)
@@ -687,209 +986,35 @@ function csvcomplexparse(file_dir::String)
 	return cmps
 end
 
+# ╔═╡ a6f19760-8d81-11eb-2e7e-6dae07c47af9
+"""
+	csvcomplexparse(file_dir::String)
+
+__Complex *vector* debug import tool!__
+
+Maps an imported `Array{String,1}` type, from numpy via csv intermediary, cleaning and parsing, to an `Array{Complex{Float64},1}` type.
+
+`file_dir::String ->` location of csv stored numpy array.
+"""
+function csvcomplexparse2(file_dir::String)
+	t_vec = CSV.File(file_dir, header=0) |> Tables.matrix
+	strs = map(complexclean, t_vec[:,2])
+	cmps = parse.(Complex{Float64}, strs)
+	
+	return cmps
+end
+
 # ╔═╡ d8cbc6e4-7dbd-11eb-378e-8bf7a5d244f2
+"""
+	csvfloatparse(file_dir::String)
+
+__Floating point *matrix* debug import tool!__
+
+`file_dir::String ->` location of csv stored numpy array.
+"""
 function csvfloatparse(file_dir::String)
 	return CSV.File(file_dir, header=0) |> Tables.matrix
 end
-
-# ╔═╡ 43b40838-72f4-11eb-068b-b7152a884e66
-md"""
-### Incremental test comparison
-In this section, we make use of the import functions defined above, we incrementally compare the numerical results obtained in the python simulation to those obtained in this simulation.
-"""
-
-# ╔═╡ e27d74fe-6e6c-11eb-08d5-b988732170d0
-begin
-	# defs
-	μ = 0.5
-	L = 200
-	N = 40
-end;
-
-# ╔═╡ 65a0f08e-7dc4-11eb-1676-8ba451a5574a
-smooth_potential(μ, N, L)
-
-# ╔═╡ cd720bf4-7dad-11eb-0e06-3fc6fa6c91c9
-md"""
-#### Testing via python matrix import comparison
-"""
-
-# ╔═╡ 93dccf8a-7dac-11eb-25f8-cd19f446b7a3
-# test & compare T(μ)
-begin
-	T_compare = T(μ, N)			# julia T constructor function
-	T_julia = T_compare.self 	# 'self' T matrix
-	
-	@assert T_julia[1:N,1:N] == T_compare.t_11
-	@assert T_julia[1:N,(N+1):(2*N)] == T_compare.t_12
-	@assert T_julia[(N+1):(2*N),1:N] == T_compare.t_21
-	@assert T_julia[(N+1):(2*N),(N+1):(2*N)] == T_compare.t_22
-	# T sub matrices are correct
-	
-	T_python =  csvcomplexparse("matrices/T_python.csv")
-	
-	@assert T_julia == T_python # tests true!
-end
-# PASS
-
-# ╔═╡ 168b4c16-7dc8-11eb-3bbe-9d52f6558742
-T_python_D = T_data(T_python,
-				  T_python[1:N,1:N],
-				  T_python[1:N,(N+1):(2*N)],
-				  T_python[(N+1):(2*N),1:N],
-				  T_python[(N+1):(2*N),(N+1):(2*N)])
-
-# ╔═╡ 3391ed90-7dae-11eb-054d-db7a314ab852
-# test & compare S(T(μ))
-begin
-	S_compare = S(T_compare)	# julia S constructor function
-	S_julia = S_compare.self	# 'self' S matrix
-	#writedlm("matrices/S_julia.csv",  S_julia, ',')
-
-	@assert S_julia[1:N,1:N] == S_compare.s_11
-	@assert S_julia[1:N,(N+1):(2*N)] == S_compare.s_12
-	@assert S_julia[(N+1):(2*N),1:N] == S_compare.s_21
-	@assert S_julia[(N+1):(2*N),(N+1):(2*N)] == S_compare.s_22
-	# S sub matrices are correct
-
-	S_python =  csvcomplexparse("matrices/S_python.csv")
-
-	for el in abs.(S_julia - S_python)
-		@assert isapprox(el, 0, atol = 0.000001)
-	end # abs. error margin is for els. in T_0.000001
-end
-# PASS, JULIA AND PYTHON METHODS ARE EQUAL BUT FOR ROUNDING ERRORS
-
-# ╔═╡ 76344974-7db4-11eb-19c0-3b2116705950
-S_python_D = S_data(S_python,
-				  S_python[1:N,1:N],
-				  S_python[1:N,(N+1):(2*N)],
-				  S_python[(N+1):(2*N),1:N],
-				  S_python[(N+1):(2*N),(N+1):(2*N)])
-
-# ╔═╡ 0743b716-7db4-11eb-1fcd-13f95d1daf8b
-# test & compare sum_S(S, S)
-begin
-	sumS_compare_j = sum_S(S_compare, S_compare)
-	sumS_compare_p = sum_S(S_python_D, S_python_D)
-	
-	verif = isapprox.(sumS_compare_j.self, sumS_compare_p.self, atol = 0.00001)
-	length(findall(verif .== 1))
-	# sumS_compare_j and sumS_compare_p are approx equal to atol = 0.00001
-	
-	
-	sumS_python = csvcomplexparse("matrices/addS_python.csv")
-	
-	verif = isapprox.(sumS_compare_j.self, sumS_python, atol = 0.1)
-	length(findall(verif .== 1))
-	# sumS_compare_j and sumS_compare_p are approx equal to atol = 0.00001
-	
-	#writedlm("matrices/addS_julia.csv",  sumS_compare_j.self, ',')
-	
-	## compare the sub matrices of sumS_julia and sumS_python
-	sumS_julia = sumS_compare_j.self
-	
-	@assert isapprox(sumS_julia[1:N,1:N], sumS_python[1:N,1:N], atol=0.0001)
-	@assert isapprox(sumS_julia[1:N,(N+1):(2*N)], sumS_python[1:N,(N+1):(2*N)], atol=0.0001)
-	@assert isapprox(sumS_julia[(N+1):(2*N),1:N], sumS_python[(N+1):(2*N),1:N], atol=0.0001)
-	@assert isapprox(sumS_julia[(N+1):(2*N),(N+1):(2*N)], sumS_python[(N+1):(2*N),(N+1):(2*N)], atol=0.0001)
-end
-# FAIL, SOMETHING IS WRONG WITH S_22 OF THE JULIA SUM_S ALGORITH
-# s_22 = Sb.s_22 + Sb.s_21 * inv(I - Sa.s_22 * Sb.s_11) * Sa.s_22 * Sb.s_22
-# BUG FOUND, TYPO FIXED FROM: `... * Sb.s_22` to `... * Sb.s_12`
-# PASS, DEGREE OF ACCURACY TOLERANCE: atol = 0.0001 = 1e-4
-
-# ╔═╡ 3dc4eab8-7dbd-11eb-11a5-d5b1c33b5541
-# test & compare smooth_potential (cell 1)
-begin
-	px 	= range(-1., 1., length=200)
-	py 	= range(-1., 1., length=40)
-	sP_python = csvfloatparse("matrices/sP_python.csv")
-	#pythontest = surface(px, py, sP_python, xlabel="Y", ylabel="X", zlabel="Z", title="Potential barrier profile")
-end;
-
-# ╔═╡ 5fd3174a-7dbf-11eb-22c0-13725c493e74
-# test & compare smooth_potential (cell 2)
-begin
-	sP_julia = smooth_potential(μ, N, L)
-	#juliatest = surface(px, py, sP_julia, xlabel="Y", ylabel="X", zlabel="Z", title="Potential barrier profile")
-end;
-# PASS
-
-# ╔═╡ a7cda810-7dbc-11eb-2434-31d93e7651e0
-# test & compare gen_S_total(V, L)
-begin
-	genSt_python = csvcomplexparse("matrices/genSt_python.csv")
-	
-	genSt_compare = gen_S_total(sP_python, L)
-	genSt_julia = genSt_compare.self
-	
-	@assert isapprox(genSt_python, genSt_julia, atol = 0.0001)
-end
-# PASS, DEGREE OF ACCURACY TOLERANCE: atol = 0.0001 = 1e-4
-
-# ╔═╡ 0190c7c0-7dc6-11eb-2f0a-3dcdd3e7fa2c
-# test & compare gen_S_total_opt(V, L)
-begin
-	genStopt_python = csvcomplexparse("matrices/genStopt_python.csv")
-	
-	genStopt_compare = gen_S_total_opt(sP_python, L)
-	genStopt_julia = genStopt_compare.self
-	
-	@assert isapprox(genStopt_python, genSt_julia, atol = 4)
-end
-# FAIL (LEAVE FOR NOW SINCE FUNCTIONS ONLY PROVIDES AN OPTIONAL SPEED INCREASE)
-
-# ╔═╡ 64b90c6c-7dc7-11eb-2de4-fd1f990d6860
-# test error_ϵ(S::S_data, T::T_data)
-begin
-	errorS_julia = error_ϵ(S_python_D, T_python_D)
-end
-
-# ╔═╡ f74d6a68-61e9-11eb-0ed8-8bdd85177922
-#= md"""
-**TO BE DEVELOPED ON FURTHER**
-
-## Non-equilibrium Green function formalism (NEGF)
-
-The non-equilibrium Green function formalism approach to describing quantum transport in a channel which can be crossed ballistically, revolves around the following relationship:
-
-$E[\psi] = [H][\psi] = [\Sigma][\psi] + [s]$
-
-which in fact a compact form of the following matrices:
-
-![NGEF1](https://imgur.com/vBMNpYr.png)
-
-Here, $H$ is the Hamiltonian operator and $\Sigma$
-""" =#
-
-# ╔═╡ f195457c-7dce-11eb-1326-83ed59d18879
-md"""
-## Experimental Impurity Data:
-The data represents a shift in the QPC channel from left to right which is obtained by applying a differential voltage on left and right split gates, here, -0.1 V and 0.1 V respectively.
-Data is seperated into **`clean`** & **`noisy`**.
-
----
-**Labels:**
-
-**`splitgate_V ->`** voltage applied across the split-gate to bias channel to the 'right'.
-
-**`conductance ->`** **G** (μS) measured across QPC channel
-
----
-**Properties:**
-
-**`clean ->`** no impurities in QPC channel
-
-**`noisy ->`** impurities present in channel (varying types, further analyis on this needed)
-
----
-"""
-
-# ╔═╡ 552aa3e0-7dd2-11eb-399e-ad5fc208fbc5
-md"""
-#### Data Import:
-"""
 
 # ╔═╡ d5a18c24-7dd1-11eb-30d4-6dcb0c8c9c4e
 begin
@@ -900,21 +1025,48 @@ begin
 	noisyG = csvfloatparse("data/conductance_noisy.csv")
 	
 	plotly()
-end
+end;
 
 # ╔═╡ 5056efdc-7dd6-11eb-21d3-e13768d765d9
 clean_plot = plot(cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
-				  cleanG[1:(size(cleanG)[1]), 1:(size(cleanG)[2])],
-				  title="Channel Conductance of a Clean QPC",
-				  xlabel="Split Gate Voltage (V)",
-				  ylabel="Channel Conductance G (μS)")
+				cleanG[1:(size(cleanG)[1]), 1:(size(cleanG)[2])],
+				title="Channel Conductance of a Clean QPC",
+				xlabel="Split Gate Voltage (V)",
+				ylabel="Channel Conductance G (μS)",
+				leg=false)
 
 # ╔═╡ fa5d996e-7dd5-11eb-3010-8935856e0b68
 noisy_plot = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
-				  noisyG[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
-				  title="Channel Conductance of a QPC Containing Impurities",
-				  xlabel="Split Gate Voltage (V)",
-				  ylabel="Channel Conductance G (μS)")
+				noisyG[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
+				title="Channel Conductance of a QPC Containing Impurities",
+				xlabel="Split Gate Voltage (V)",
+				ylabel="Channel Conductance G (μS)",
+				leg=false)
+
+# ╔═╡ f7b17256-8331-11eb-1542-0d28cdf6478f
+# scale conductance plots by G_0
+begin
+	G_0 = (2 * e^2) / h
+	
+	cleanG_scaled = (cleanG .* 1e-6) ./ G_0
+	noisyG_scaled = (noisyG .* 1e-6) ./ G_0
+end;
+
+# ╔═╡ 3988a6f4-8332-11eb-0bbc-61d88181a812
+clean_plot2 = plot(cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
+				cleanG_scaled[1:(size(cleanG)[1]), 1:(size(cleanG)[2])],
+				title="Channel Conductance of a Clean QPC",
+				xlabel="Split Gate Voltage (V)",
+				ylabel="Channel Conductance (Gₒ)",
+				leg=false)
+
+# ╔═╡ 561742b2-8332-11eb-0c5f-d14c9b23709c
+noisy_plot2 = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
+			 	noisyG_scaled[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
+				title="Channel Conductance of a QPC Containing Impurities",
+				xlabel="Split Gate Voltage (V)",
+				ylabel="Channel Conductance (Gₒ)",
+				leg=false)
 
 # ╔═╡ Cell order:
 # ╟─7ee2fb54-433c-11eb-1f9b-3528ac7148a4
@@ -930,53 +1082,61 @@ noisy_plot = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
 # ╟─dc91ea8c-5f6e-11eb-20ed-318a74d2f404
 # ╠═ef273a10-5f6e-11eb-386e-4df51c71d0b5
 # ╟─3d636042-61ff-11eb-1b22-9555285fe9af
+# ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
+# ╟─6520a3e8-8d82-11eb-3cb0-dbc6713dc7d2
 # ╟─3e467742-61ff-11eb-3640-8f313ff08354
+# ╟─9fb6d210-8d83-11eb-0590-e16bf8468dae
 # ╟─adaf3546-72f4-11eb-0b21-e7466c2d81be
 # ╠═4dedeecc-6246-11eb-00c7-014b87b08c32
 # ╠═b9d7ddd8-624a-11eb-1084-35320b3f9afb
 # ╠═b06e326c-72f6-11eb-204a-ef48d6cbf876
-# ╟─7158aa22-72f5-11eb-246b-3bb16136c59c
-# ╟─70e21632-72f5-11eb-341e-0f121cf27eac
+# ╟─3cf41550-834e-11eb-1997-99d861892e35
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
+# ╟─d15c21b8-8350-11eb-0a17-916ab9ab4c48
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
 # ╟─faedfda0-72d7-11eb-0b80-7d63e962468d
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
 # ╠═d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 # ╠═095be506-64e5-11eb-3ac8-6dbf5a7f5f9e
-# ╠═08169170-64e3-11eb-3fbe-6b50b31ee02f
-# ╟─fe16d518-64e7-11eb-04f5-bb25ed0a9eea
+# ╟─b3fb891c-8d83-11eb-31d8-3fea8e634889
 # ╠═212d911a-7dc3-11eb-11ee-333220a641e5
 # ╠═9ff7af7e-7dc2-11eb-17b8-e7fe576888c4
-# ╠═65a0f08e-7dc4-11eb-1676-8ba451a5574a
+# ╠═91b4b744-8328-11eb-017b-6153bb61cfb2
+# ╟─a1f94578-8d84-11eb-1de6-03bab5d1e34e
 # ╠═6b63b052-64eb-11eb-1a62-33262062ece1
-# ╟─8ef3c6e0-72f3-11eb-3244-1f406e6bde18
-# ╟─629a9616-625c-11eb-0e76-536b5de36ab7
+# ╟─deb49ea2-8d85-11eb-34ed-7b71e4b3cef8
 # ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
+# ╟─c2f6b348-8d84-11eb-2b07-d585477a2f50
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
-# ╠═5ad541b0-64eb-11eb-0782-a59689a23af5
-# ╠═9561719a-829c-11eb-3235-add5ff699ed5
-# ╠═7c8dd648-7dad-11eb-2d5e-69d011342fe8
-# ╟─6bde2f84-6258-11eb-0e07-af0a2275fd79
-# ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
-# ╠═b1c556a8-72e3-11eb-1299-8b52ae0c19b7
-# ╠═5e9936fa-72e5-11eb-078f-bd9e193eda1a
-# ╠═d8cbc6e4-7dbd-11eb-378e-8bf7a5d244f2
-# ╟─43b40838-72f4-11eb-068b-b7152a884e66
-# ╠═e27d74fe-6e6c-11eb-08d5-b988732170d0
-# ╟─cd720bf4-7dad-11eb-0e06-3fc6fa6c91c9
-# ╠═93dccf8a-7dac-11eb-25f8-cd19f446b7a3
-# ╠═168b4c16-7dc8-11eb-3bbe-9d52f6558742
-# ╠═3391ed90-7dae-11eb-054d-db7a314ab852
-# ╠═76344974-7db4-11eb-19c0-3b2116705950
-# ╠═0743b716-7db4-11eb-1fcd-13f95d1daf8b
-# ╠═3dc4eab8-7dbd-11eb-11a5-d5b1c33b5541
-# ╠═5fd3174a-7dbf-11eb-22c0-13725c493e74
-# ╠═a7cda810-7dbc-11eb-2434-31d93e7651e0
-# ╠═0190c7c0-7dc6-11eb-2f0a-3dcdd3e7fa2c
-# ╠═64b90c6c-7dc7-11eb-2de4-fd1f990d6860
-# ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
+# ╠═ce242db8-8d84-11eb-1f4d-532062e2cb6d
+# ╠═0a306d9c-8d85-11eb-3ceb-737958085066
+# ╠═76e232ba-8d85-11eb-1e66-d7243264b5ed
+# ╠═8c858216-8d85-11eb-27d5-710e5153ba7a
+# ╠═2954131a-8d85-11eb-1862-bdef8e49a509
+# ╠═7186dc7e-8d85-11eb-3429-3bbc1f4ab65b
+# ╟─c3d2dafc-8d85-11eb-1927-0ffa6df786db
+# ╠═cffd655e-8d85-11eb-262c-c35e8d38a7d1
+# ╟─3875774a-8d87-11eb-321a-0f74a8dc4c73
+# ╠═d9c8aba0-8d87-11eb-253b-6b768572d1bc
+# ╠═47f47e16-8d87-11eb-2734-fbe36fd94431
+# ╠═3fd81744-8d87-11eb-3366-3d51632a9043
+# ╟─53ddbc9c-8d87-11eb-050e-11c509947dbf
+# ╟─13339302-8d86-11eb-3f98-ad0482c5121a
 # ╟─f195457c-7dce-11eb-1326-83ed59d18879
 # ╟─552aa3e0-7dd2-11eb-399e-ad5fc208fbc5
 # ╠═d5a18c24-7dd1-11eb-30d4-6dcb0c8c9c4e
 # ╟─5056efdc-7dd6-11eb-21d3-e13768d765d9
 # ╟─fa5d996e-7dd5-11eb-3010-8935856e0b68
+# ╠═f7b17256-8331-11eb-1542-0d28cdf6478f
+# ╟─3988a6f4-8332-11eb-0bbc-61d88181a812
+# ╟─561742b2-8332-11eb-0c5f-d14c9b23709c
+# ╟─854b06e2-87fc-11eb-1d4a-058609b638d3
+# ╟─8e92f6f4-8353-11eb-30ca-c3d79597943a
+# ╟─e63f0386-8353-11eb-0334-3b77fcc24f3a
+# ╟─7540e066-8338-11eb-0649-8b78be00ce4d
+# ╟─f6c12ba2-8d86-11eb-3060-77aa104ab877
+# ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
+# ╠═b1c556a8-72e3-11eb-1299-8b52ae0c19b7
+# ╠═5e9936fa-72e5-11eb-078f-bd9e193eda1a
+# ╠═a6f19760-8d81-11eb-2e7e-6dae07c47af9
+# ╠═d8cbc6e4-7dbd-11eb-378e-8bf7a5d244f2

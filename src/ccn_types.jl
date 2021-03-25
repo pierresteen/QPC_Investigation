@@ -1,7 +1,5 @@
-# Chalker-Coddington Network Model of QPC Conductance
-module ccn_network
-
-## Data Structures:
+# Chalker-Coddington Network Model Data Structures:
+module ccntypes
 
 """
 	T_data
@@ -36,5 +34,14 @@ struct S_data
 end
 
 
+struct Sys_sol
+	G
+	τ
+	α
+	r
+	β
+end
+
+export T_data, S_data, Sys_sol
 
 end
