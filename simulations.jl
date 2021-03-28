@@ -6,11 +6,9 @@ using InteractiveUtils
 
 # ╔═╡ 9cabcdd6-5e68-11eb-0613-9785eb761d6d
 begin
-	using PlutoUI
-	using Images
-	using QuadGK
-	using Plots
 	using CSV
+	using Plots
+	using Images
 	using DataFrames
 	using LinearAlgebra
 	using DelimitedFiles
@@ -101,9 +99,6 @@ begin
 	plot!(p_saddle, camera=(40,40))
 end
 
-# ╔═╡ c8c5010c-5f6d-11eb-020f-b5a3fa043f1e
-
-
 # ╔═╡ dc91ea8c-5f6e-11eb-20ed-318a74d2f404
 md"## Constants:"
 
@@ -126,7 +121,9 @@ md"""
 
 The non-equilibrium Green function formalism approach to describing quantum transport in a channel which can be crossed ballistically, revolves around the following relationship:
 
-$E[\psi] = [H][\psi] = [\Sigma][\psi] + [s]$
+```math
+E[\psi] = [H][\psi] + [\Sigma][\psi] + [s]
+```
 
 which in fact a compact form of the following matrices:
 
@@ -138,9 +135,6 @@ Import for us to remember, is that ``s`` is the __scattering matrix__.
 
 We will be using ``s`` along with numerically generated Hamiltonian operators to solve for the wavefuntions of the system and therefore characterise the quantum transport, finally solving for the conductance ``G`` (more on this later).
 """
-
-# ╔═╡ 6520a3e8-8d82-11eb-3cb0-dbc6713dc7d2
-
 
 # ╔═╡ 3e467742-61ff-11eb-3640-8f313ff08354
 md"""
@@ -181,7 +175,7 @@ A crude interpretaion of this struture is presented below:
 
 ```julia
 +---------------------------------------------------------> (X)
-|		...	n-4	n-3	n-2	n-1  n 	n+1 n+2 n+3 n+4 ...
+|		...	L-4	L-3	L-2	L-1  N 	L+1 L+2 L+3 L+4 ...
 |	( )	( )	( )	(X)	(X)	(X)	(X)	(X)	(X)	(X) ( )	( )	( )
 | 	 |	 |	 |	 |	 |	 |	 |	 |	 |	 |	 |	 |	 |
 |	( )	( )	( )	(X)	(X)	(X)	(X)	(X)	(X)	(X) ( )	( )	( )
@@ -202,9 +196,6 @@ V
 (Y)
 ```
 """
-
-# ╔═╡ 9fb6d210-8d83-11eb-0590-e16bf8468dae
-
 
 # ╔═╡ adaf3546-72f4-11eb-0b21-e7466c2d81be
 md"""
@@ -273,9 +264,7 @@ The matrix ``T`` operates on discrete wave functions as:
 	t\psi_{n-1}\\
 \end{bmatrix}
 ```
-
 where:
-
 ```math
 T =
 \begin{bmatrix}
@@ -285,12 +274,90 @@ T =
 ```
 
 Transfer matrices can be evaluated locally and for the entire system without the need for iteration over all nodes.
+We can subdivide the transfer matrix into its sub-elements as:
 
+```math
+T = 
+\begin{bmatrix}
+t_{11} & t_{12}\\
+t_{21} & t_{22}\\
+\end{bmatrix}
+```
+where:
+```math
+t_{11} = - iI + \frac{1}{2} H
+\quad\quad
+t_{12} = - \frac{1}{2} iH 
+```
+```math
+t_{21} = - \frac{1}{2} iH
+\quad\quad
+t_{22} = iI + \frac{1}{2} H
+```
+
+and the Hamiltonian of the system is given by:
+
+```math
+H = -t I_{-1} + (4 - \mu) \epsilon I_{0} + -t I_{1}
+```
+where ``t = 1``, the coupling constant, ``\epsilon = (4 - \mu)``
+```math
+I_{-1} =
+\begin{bmatrix}
+0 & 0 & 0 & \dots\\
+1 & 0 & 0 & \dots\\
+0 & 1 & 0 & \dots\\
+\vdots & \vdots & \vdots & \ddots\\
+\end{bmatrix}
+\quad
+I_{0} =
+\begin{bmatrix}
+1 & 0 & 0 & \dots\\
+0 & 1 & 0 & \dots\\
+0 & 0 & 1 & \dots\\
+\vdots & \vdots & \vdots & \ddots\\
+\end{bmatrix}
+\quad
+I_{1} =
+\begin{bmatrix}
+0 & 1 & 0 & \dots\\
+0 & 0 & 1 & \dots\\
+0 & 0 & 0 & \dots\\
+\vdots & \vdots & \vdots & \ddots\\
+\end{bmatrix}
+```
+
+__Example:__
+
+For ``N = 4`` and ``\mu = 1``, the transfer matrix ``T`` is given by: 
+```math
+T =
+\begin{bmatrix}
+1.5-1.0i & -0.5-0.0i & -1.5+0.0i & 0.5+0.0i\\
+-0.5-0.0i & 1.5-1.0i & 0.5+0.0i & -1.5+0.0i\\
+-1.5+0.0i & 0.5+0.0i & 1.5+1.0i & -0.5+0.0i\\
+0.5+0.0i & -1.5+0.0i & -0.5+0.0i & 1.5+1.0i\\
+\end{bmatrix}
+```
 """
+
+# ╔═╡ c2559046-8e3b-11eb-3061-5dee42c3e621
+"""
+	H_mod()
+
+Builds a Hamiltonian (tight-binding model) for the QPC system.
+Used later in generating the transfer matrix of the system and the numerical algorithm for solving the quantum transport of the system.
+"""
+function H_mod(N, μ)
+	v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
+	H = diagm(-1 => -v) + diagm(0 => 4 * ones(Float64, N) .- μ) + diagm(1 => -v)
+	
+	return H
+end
 
 # ╔═╡ 06038796-6234-11eb-3dd3-cf25a7095963
 """
-	T(V_y)
+	T(μ, N)
 
 Generates a diagonal tranfer data type `T::T_data` for given bias potentail: `μ`.
 `T` is a `2N`x`2N` matrix, with three main diagonals at `diagind[1] = 0, 5, -5`.
@@ -299,10 +366,9 @@ function T(μ, N)
 	# create complex float type matrix with 1im diagonal values
 	im_mat = zeros(Complex{Float64}, N, N)
 	im_mat[diagind(im_mat)] .= 1im
-	v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
 
 	# create tight-binding Hamiltonian model
-	H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, N) .- μ) + diagm(1 => -v)
+	H = H_mod(N, μ)
 	
 	# form blocked transfer matrix blocks t_ij from $im_mat, $v and $H
 	t_11 = -im_mat .+ 0.5 * H
@@ -337,8 +403,8 @@ This matrix relates the initial state to the final state by:
 	S_{21} & S_{22}\\
 \end{bmatrix}
 \begin{bmatrix}
-	B\\
-	C\\
+	A\\
+	D\\
 \end{bmatrix}
 ```
 
@@ -458,11 +524,11 @@ end
 
 # ╔═╡ 9ff7af7e-7dc2-11eb-17b8-e7fe576888c4
 """
-	smooth_potential_broken(μ, N, L, xL=1.,yL=1., amp=1., profile=1)
+	smooth_potential_broken(μ, N, L, xL=1.,yL=1., amp=1.)
 
 Generates a smooth saddle-point potential profile for system ef dimensions `width = N` and `length = L`.
 """
-function smooth_potential(μ, N, L, xL=1.,yL=1., amp=1.)
+function smooth_potential(μ, N, L, xL=1., yL=1., amp=1.)
 	px = Float64.(range(-xL, xL, length=N))
 	py = Float64.(range(-yL, yL, length=L))
 	
@@ -470,6 +536,25 @@ function smooth_potential(μ, N, L, xL=1.,yL=1., amp=1.)
 	
 	return (-0.5 * amp) * (tanh.(X.^2 - Y.^2) .+ 1) .+ μ
 end
+
+# ╔═╡ 69e57db4-8f2f-11eb-04fa-052bf0433dea
+function impurity_potential(μ, N, L, A, xtune, ytune, smooth_A, xL=1., yL=1.)
+	px = Float64.(range(-xL, xL, length=N))
+	py = Float64.(range(-yL, yL, length=L))
+	
+	X, Y = meshgrid(px, py)
+
+	add_imp = - A .* (cos.(xtune .* X) + cos.(ytune .* Y))
+	
+	return smooth_potential(μ, N, L, xL, yL, smooth_A) + add_imp
+end
+
+# ╔═╡ bba2787c-8db9-11eb-0566-7d3b8f46e43d
+surface(smooth_potential(0.5, 40, 100, 1., 1., 1.),
+		#ticks=false,
+		xlabel="X",
+		ylabel="Y",
+		zlabel="Z")
 
 # ╔═╡ 91b4b744-8328-11eb-017b-6153bb61cfb2
 """
@@ -644,8 +729,8 @@ system_intermediary(Uᵣ, Uₗ, ψ_L, E_D) -> coeffs::Array{Complex{Float64},2},
 function system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
 	coeffs = inv(Uₗ) * Uᵣ		# coefficients matrix
 	
-	count_in 	= size(ψ_L)[2]	# number of incident waves
-	count_evan 	= size(E_D)[2]	# number of evanescent waves
+	count_in	= size(ψ_L)[2]	# number of incident waves
+	count_evan	= size(E_D)[2]	# number of evanescent waves
 	
 	return coeffs, count_in, count_evan
 end
@@ -677,15 +762,15 @@ md"""
 ## Simulation Results
 """
 
-# ╔═╡ d9c8aba0-8d87-11eb-253b-6b768572d1bc
-e
-
 # ╔═╡ 47f47e16-8d87-11eb-2734-fbe36fd94431
 begin
 	N = 40
 	L = 100
-	μ = 0.4
-end
+	μ = 0.5
+end;
+
+# ╔═╡ fd1585d4-8f2f-11eb-21c5-f96dc290073c
+surface(impurity_potential(μ, N, L, 0.1, 20, 20, 0.6, 1., 1.))
 
 # ╔═╡ 0a306d9c-8d85-11eb-3ceb-737958085066
 """
@@ -707,17 +792,13 @@ end
 
 # ╔═╡ cffd655e-8d85-11eb-262c-c35e8d38a7d1
 """
-	system_solve(μ, V, N, L, i, opt)
+	system_solve(μ, V, N, L, i)
 	
 Algorithm for solving the system of equations of the "Chalker-Coddington Network Model" of a 1D QPC...
 """
-function system_solve(μ, V, N, L, i, opt)
-	# generate scattering matrices S_T::S_data, according to option 'opt'
-	if opt == true
-		S_T = gen_S_total_opt(V, L)
-	else
-		S_T = gen_S_total(V, L)
-	end
+function system_solve(μ, V, N, L, i)
+	# generate scattering matrices S_T::S_data
+	S_T = gen_S_total(V, L)
 	
 	# extract eigenvectors & eigenvalues from T::T_data.self
 	λ = eigen(T(μ, N).self, sortby=nothing, permute=true)
@@ -728,6 +809,8 @@ function system_solve(μ, V, N, L, i, opt)
 
 	# sort and index: ψ_R & ψ_L (un-normed) + E_G & E_D (growing and decreasing)
 	ψ_R, ψ_L, E_G, E_D = ψ_classify(λ_vecs, λ_vals)
+	
+	#return ψ_R, ψ_L
 
 	# evaluate and apply ψ norms
 	ψ_R, ψ_L = ψ_norms(ψ_R, ψ_L)
@@ -745,21 +828,61 @@ function system_solve(μ, V, N, L, i, opt)
 	return solution_params
 end
 
-# ╔═╡ 3fd81744-8d87-11eb-3366-3d51632a9043
+# ╔═╡ 754fd72a-8f2b-11eb-381b-c19ea1fed40a
 begin
-	G = []
-	energies = range(0.5, 1, length=50)
-	for en in energies
-		V = smooth_potential(en, N, L, 1., 1., 0.4)
-		push!(G, system_solve(en, V, N, L, en, false)[1])
-	end
+	V_test = smooth_potential(0.4, 40, 100, 1., 1., 0.5)
+	system_solve(0.4, V_test, 40, 100, 0.4)
 end
 
-# ╔═╡ 53ddbc9c-8d87-11eb-050e-11c509947dbf
-plot(energies, G, leg=false)
+# ╔═╡ ef295a00-8db7-11eb-1f02-db93c59bd24f
+function conductance_gen(N, L, gate_min, gate_max,  barrier_height, precision)
+	G = []
+	gate_energies = range(gate_min, gate_max, length=precision)
+	
+	for g_en in gate_energies
+		V_en = smooth_potential(g_en, N, L, 1., 1., barrier_height)
+		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
+	end
+	
+	return G
+end
+
+# ╔═╡ 602d89d4-8dbc-11eb-3095-553df225ff7d
+# begin
+# 	G_traces = []
+# 	for i in 0.2:0.1:1
+# 		G_i = conductance_gen(40, 100, 0.1, 1.5, i, 100)
+# 		push!(G_traces, G_i)
+# 	end
+# end
+
+# ╔═╡ 68203a46-8dbd-11eb-1728-9b16c1ffe38f
+# begin
+# 	en_range = range(0.1, 1.5, length=100)
+# 	plot(en_range, G_traces, leg=false)
+# end
 
 # ╔═╡ 13339302-8d86-11eb-3f98-ad0482c5121a
 
+
+# ╔═╡ 4af13238-8e38-11eb-2b80-3b1c9c7eb95d
+begin
+	v = ones(Float64, 4-1)
+	H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, 4) .- 0.4) + diagm(1 => -v)
+end
+
+# ╔═╡ f09e2df2-8e37-11eb-3537-ad7491c66146
+md"""
+## Simulating Impurity
+
+So far, we have used a tight-binding Hamiltonian model, given by:
+```julia
+v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
+H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, N) .- μ) + diagm(1 => -v)
+```
+
+### Impurity Modified Potential Map 
+"""
 
 # ╔═╡ f195457c-7dce-11eb-1326-83ed59d18879
 md"""
@@ -788,6 +911,37 @@ Data is seperated into **`clean`** & **`noisy`**.
 md"""
 ### Data Import:
 """
+
+# ╔═╡ 3fd81744-8d87-11eb-3366-3d51632a9043
+begin
+	G = []
+	energies = range(0.01, 0.6, length=500)
+	for en in energies
+		#V = impurity_potential(en, N, L, 0.0001, 10, 10, 1., 1.)
+		V = smooth_potential(en, N, L, 1., 1., barrier_height)
+		push!(G, system_solve(en, V, N, L, en)[1])
+	end
+end
+
+# ╔═╡ 53ddbc9c-8d87-11eb-050e-11c509947dbf
+plot(energies, G, leg=false)
+
+# ╔═╡ 97ea8df4-8f47-11eb-1f43-1771fffdbf0d
+begin
+	G2 = []
+	energies2 = range(0.01, 0.6, length=500)
+	#energies2 = 0:0.0014028056112224449:0.6
+	for en in energies2
+		V = impurity_potential(en, N, L, 0.006, 10, 10, 1., 1.)
+		push!(G2, system_solve(en, V, N, L, en)[1])
+	end
+end
+
+# ╔═╡ a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
+plot(energies2, G2, leg=false)
+
+# ╔═╡ 06c63016-8f48-11eb-2d84-510fe0936595
+range(-0.1, 0.6, length=500)
 
 # ╔═╡ 854b06e2-87fc-11eb-1d4a-058609b638d3
 md"""
@@ -849,85 +1003,6 @@ E = E_{n} + \frac{\hbar^2 | \vec{k}_{x,y} |^2}{2m^*}
 ```
 
 in accordance to the effective mass theorem which gives us the electron mass in the material as ``m^*``.
-
-"""
-
-# ╔═╡ 7540e066-8338-11eb-0649-8b78be00ce4d
-md"""
-## Matrix Solutions of the Discretised Schrodinger Equation
-
-### Discretised Schrodinger Equation:
-
-Under *effective electron mass and envelope function approximations*, the discretised Schrodinger equation is:
-
-```math
--\frac{\hbar^2}{2m^*}\left[\frac{\psi(z+\delta z) - 2\psi(z) + \psi(z - \delta z)}{(\delta z)^2}\right] + V(z)\psi(z) = E\psi(z) \quad (1)
-```
-
-We rearrange it into the form:
-
-```math
-a\psi(z - \delta z) - b(z)\psi(z) + c\psi(z + \delta z) = E\psi(z)  \quad (2)
-```
-```math
-a = c = -\frac{\hbar^2}{2m^* (\delta z)^2} \quad b(z) = \frac{\hbar^2}{m^* (\delta z)^2} + V(z)
-```
-
-### Matrix Formulation:
-
-We have a discretised ``z`` dimension, of size ``N``.
-Start by rewriting ``(2)`` as:
-
-```math
-a_i \psi_{i-1}- b_i \psi_i + c_i \psi_{i+1} = E\psi_i  \quad (3)
-```
-
-Here, ``i``  represents the *index* of each sample of of ``\psi`` in the discretised dimension ``z``.
-We also rewrite the coefficients as:
-
-```math
-a_{i+1} = c_i = -\frac{\hbar^2}{2m^* (\delta z)^2} \quad b_i = \frac{\hbar^2}{m^* (\delta z)^2} + V(z)
-```
-
-The boundary conditions, ``\psi_0 = \psi_{N+1} = 0`` represent the first set of points outside of the system.
-We can now express ``(3)`` at each sample in the system as a linear system of equations:
-
-```math
-a_1 \psi_{0} - b_1 \psi_1 + c_1 \psi_{2} = E\psi_1
-```
-```math
-a_2 \psi_{1} - b_2 \psi_2 + c_2 \psi_{3} = E\psi_2
-```
-```math
-\dots
-```
-```math
-a_{N} \psi_{N-1} - b_{N} \psi_{N} + c_{N} \psi_{N+1} = E\psi_{N}
-```
-
-We can clearly see that we can turn this into a system of the form ``H\psi = E\psi``, where ``H`` is:
-
-```math
-H =
-\begin{bmatrix}
-	b_1 & c_1 & 0 & \dots & 0\\
-	a_2 & b_2 & c_2 & \dots & 0\\
-	0 & \ddots & \ddots & \ddots & 0\\
-	\vdots & \dots & a_{N-1} & b_{N-1} & c_{N-1}\\
-	0 & \dots & 0 & a_{N} & b_{N}\\
-\end{bmatrix}
-\quad (4)
-```
-
-and ``\psi`` is a vectors containing all wave functions at the sampling points:
-
-```math
-\psi = [\psi_1, \psi_2, \dots, \psi_{N}]^T
-```
-
-### Solving by Eigenvalue Decomposition:
-
-This makes for a __matrix eigenvalue problem__ which __can__ be solved directly to locate _all_ the energies of the system simultaneously, along with the corresponding wave functions.
 
 """
 
@@ -1078,35 +1153,36 @@ noisy_plot2 = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
 # ╟─46f71c54-5f2d-11eb-3a79-c96ae093a6cc
 # ╟─b4e0828e-6110-11eb-2cca-2bcb5a409caf
 # ╟─5ecf3cf4-6116-11eb-11c5-db4253ba8d7f
-# ╟─c8c5010c-5f6d-11eb-020f-b5a3fa043f1e
 # ╟─dc91ea8c-5f6e-11eb-20ed-318a74d2f404
 # ╠═ef273a10-5f6e-11eb-386e-4df51c71d0b5
 # ╟─3d636042-61ff-11eb-1b22-9555285fe9af
 # ╟─f74d6a68-61e9-11eb-0ed8-8bdd85177922
-# ╟─6520a3e8-8d82-11eb-3cb0-dbc6713dc7d2
 # ╟─3e467742-61ff-11eb-3640-8f313ff08354
-# ╟─9fb6d210-8d83-11eb-0590-e16bf8468dae
 # ╟─adaf3546-72f4-11eb-0b21-e7466c2d81be
 # ╠═4dedeecc-6246-11eb-00c7-014b87b08c32
 # ╠═b9d7ddd8-624a-11eb-1084-35320b3f9afb
 # ╠═b06e326c-72f6-11eb-204a-ef48d6cbf876
-# ╟─3cf41550-834e-11eb-1997-99d861892e35
+# ╠═3cf41550-834e-11eb-1997-99d861892e35
+# ╠═c2559046-8e3b-11eb-3061-5dee42c3e621
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
 # ╟─d15c21b8-8350-11eb-0a17-916ab9ab4c48
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
-# ╟─faedfda0-72d7-11eb-0b80-7d63e962468d
+# ╠═faedfda0-72d7-11eb-0b80-7d63e962468d
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
 # ╠═d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 # ╠═095be506-64e5-11eb-3ac8-6dbf5a7f5f9e
 # ╟─b3fb891c-8d83-11eb-31d8-3fea8e634889
 # ╠═212d911a-7dc3-11eb-11ee-333220a641e5
 # ╠═9ff7af7e-7dc2-11eb-17b8-e7fe576888c4
+# ╠═69e57db4-8f2f-11eb-04fa-052bf0433dea
+# ╠═fd1585d4-8f2f-11eb-21c5-f96dc290073c
+# ╠═bba2787c-8db9-11eb-0566-7d3b8f46e43d
 # ╠═91b4b744-8328-11eb-017b-6153bb61cfb2
-# ╟─a1f94578-8d84-11eb-1de6-03bab5d1e34e
+# ╠═a1f94578-8d84-11eb-1de6-03bab5d1e34e
 # ╠═6b63b052-64eb-11eb-1a62-33262062ece1
 # ╟─deb49ea2-8d85-11eb-34ed-7b71e4b3cef8
-# ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
-# ╟─c2f6b348-8d84-11eb-2b07-d585477a2f50
+# ╠═2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
+# ╠═c2f6b348-8d84-11eb-2b07-d585477a2f50
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═ce242db8-8d84-11eb-1f4d-532062e2cb6d
 # ╠═0a306d9c-8d85-11eb-3ceb-737958085066
@@ -1114,26 +1190,33 @@ noisy_plot2 = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
 # ╠═8c858216-8d85-11eb-27d5-710e5153ba7a
 # ╠═2954131a-8d85-11eb-1862-bdef8e49a509
 # ╠═7186dc7e-8d85-11eb-3429-3bbc1f4ab65b
-# ╟─c3d2dafc-8d85-11eb-1927-0ffa6df786db
+# ╠═c3d2dafc-8d85-11eb-1927-0ffa6df786db
 # ╠═cffd655e-8d85-11eb-262c-c35e8d38a7d1
-# ╟─3875774a-8d87-11eb-321a-0f74a8dc4c73
-# ╠═d9c8aba0-8d87-11eb-253b-6b768572d1bc
+# ╠═754fd72a-8f2b-11eb-381b-c19ea1fed40a
+# ╠═3875774a-8d87-11eb-321a-0f74a8dc4c73
 # ╠═47f47e16-8d87-11eb-2734-fbe36fd94431
-# ╠═3fd81744-8d87-11eb-3366-3d51632a9043
-# ╟─53ddbc9c-8d87-11eb-050e-11c509947dbf
+# ╠═ef295a00-8db7-11eb-1f02-db93c59bd24f
+# ╠═602d89d4-8dbc-11eb-3095-553df225ff7d
+# ╠═68203a46-8dbd-11eb-1728-9b16c1ffe38f
 # ╟─13339302-8d86-11eb-3f98-ad0482c5121a
+# ╠═4af13238-8e38-11eb-2b80-3b1c9c7eb95d
+# ╟─f09e2df2-8e37-11eb-3537-ad7491c66146
 # ╟─f195457c-7dce-11eb-1326-83ed59d18879
 # ╟─552aa3e0-7dd2-11eb-399e-ad5fc208fbc5
 # ╠═d5a18c24-7dd1-11eb-30d4-6dcb0c8c9c4e
 # ╟─5056efdc-7dd6-11eb-21d3-e13768d765d9
 # ╟─fa5d996e-7dd5-11eb-3010-8935856e0b68
+# ╠═3fd81744-8d87-11eb-3366-3d51632a9043
+# ╠═53ddbc9c-8d87-11eb-050e-11c509947dbf
+# ╠═97ea8df4-8f47-11eb-1f43-1771fffdbf0d
+# ╠═a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
+# ╠═06c63016-8f48-11eb-2d84-510fe0936595
 # ╠═f7b17256-8331-11eb-1542-0d28cdf6478f
 # ╟─3988a6f4-8332-11eb-0bbc-61d88181a812
 # ╟─561742b2-8332-11eb-0c5f-d14c9b23709c
 # ╟─854b06e2-87fc-11eb-1d4a-058609b638d3
 # ╟─8e92f6f4-8353-11eb-30ca-c3d79597943a
 # ╟─e63f0386-8353-11eb-0334-3b77fcc24f3a
-# ╟─7540e066-8338-11eb-0649-8b78be00ce4d
 # ╟─f6c12ba2-8d86-11eb-3060-77aa104ab877
 # ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
 # ╠═b1c556a8-72e3-11eb-1299-8b52ae0c19b7
