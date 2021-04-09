@@ -1,5 +1,6 @@
 # Chalker-Coddington Network Model Scattering Functions:
 module ccnscattering
+export T, S, sum_S, gen_S_total, prod_T
 
 """
 	T(V_y)
@@ -91,7 +92,5 @@ function prod_T(x::T_data, y::T_data)
 				  (x.t_21 * y.t_21),
 			 	  (x.t_22 * y.t_22))
 end
-
-export T, S, sum_S, gen_S_total, prod_T
 
 end

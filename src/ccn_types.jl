@@ -1,5 +1,6 @@
 # Chalker-Coddington Network Model Data Structures:
 module ccntypes
+export T_data, S_data, Sys_sol
 
 """
 	T_data
@@ -41,7 +42,5 @@ struct Sys_sol
 	r
 	β
 end
-
-export T_data, S_data, Sys_sol
 
 end

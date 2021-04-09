@@ -4,8 +4,50 @@
 using Markdown
 using InteractiveUtils
 
+# ╔═╡ f47f1d70-9030-11eb-3d9e-4db778e5a425
+using Plots
+
 # ╔═╡ aec08616-8123-11eb-3b8e-a5db3738fdf0
 using Images
+
+# ╔═╡ fa77428e-9030-11eb-2861-b51604dd0552
+begin
+	t_date = [1971, 1974, 1977, 1981, 1984, 1987, 1990, 1993, 1996, 1999, 2001, 2003, 2005, 2007, 2009, 2012, 2014, 2016, 2018, 2020]
+	t_size = [10e-6, 6e-6, 3e-6, 1.5e-6, 1e-6, 800e-9, 600e-9, 350e-9, 250e-9, 180e-9, 130e-9, 90e-9, 65e-9, 45e-9, 32e-9, 22e-9, 14e-9, 10e-9, 7e-9, 5e-9]
+	p_date = [2020, 2022, 2023]
+	p_size = [5e-9, 3e-9, 2e-9]
+	silicon_size = [111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12,111e-12]
+	total_time = [1971, 1974, 1977, 1981, 1984, 1987, 1990, 1993, 1996, 1999, 2001, 2003, 2005, 2007, 2009, 2012, 2014, 2016, 2018, 2020, 2022, 2023]
+end
+
+# ╔═╡ 8c43ec9e-9031-11eb-2828-2ff644cf5033
+begin
+	moores_law = plot(t_date,
+		t_size,
+		yaxis=:log,
+		title="Transistor size over the past 50 years",
+		titlefontsize=16,
+		label="Historical trend",
+		legendfontsize=11,
+		legend=:topright
+	)
+	plot!(p_date,
+		p_size,
+		yaxis=:log,
+		line=:dash,
+		linecolor=:green,
+		label="Planned development",
+		legendfontsize=11)
+	plot!(total_time,
+		silicon_size,
+		seriestype=:hline,
+		label="Silicon atomic radius (empirical)",
+		legendfontsize=11)
+	annotate!(1990, 200e-12, Plots.text("Empirical Silicon atomic radius = 111pm", 12))
+end
+
+# ╔═╡ 1d5a15a2-9035-11eb-0065-3f697d21c971
+savefig(moores_law, "moores_law.svg")
 
 # ╔═╡ 1ad5470c-8202-11eb-3c31-2940b4217974
 md"""
@@ -209,7 +251,11 @@ See P. Harrison _'QWWDTCP'_ references `[44 - 48]`, referenced on page 393 (375)
 """
 
 # ╔═╡ Cell order:
-# ╟─1ad5470c-8202-11eb-3c31-2940b4217974
+# ╠═f47f1d70-9030-11eb-3d9e-4db778e5a425
+# ╠═fa77428e-9030-11eb-2861-b51604dd0552
+# ╠═8c43ec9e-9031-11eb-2828-2ff644cf5033
+# ╠═1d5a15a2-9035-11eb-0065-3f697d21c971
+# ╠═1ad5470c-8202-11eb-3c31-2940b4217974
 # ╟─e222372e-7f80-11eb-339b-0f92d080e55c
 # ╠═e3b09cdc-8002-11eb-2ace-11274a5d1f8d
 # ╠═aec08616-8123-11eb-3b8e-a5db3738fdf0
