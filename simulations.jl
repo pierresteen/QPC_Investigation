@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.14.1
+# v0.14.2
 
 using Markdown
 using InteractiveUtils
@@ -54,7 +54,7 @@ The figure below illustrates the heterojunction geometry used to achieve this, n
 ![Imgur](https://imgur.com/h1KrE1H.png)
 
 
-Bias potentials $V_{s}$ and $V_{d}$, applied to the source and drain respectively,  create a potential differnce $V_{sd}$, which is dropped along the path between the terminals $S$ and $D$.
+Bias potentials $V_{s}$ and $V_{d}$, applied to the source and drain respectively,  create a potential difference $V_{sd}$, which is dropped along the path between the terminals $S$ and $D$.
 We shall cover the different ways in which this potential energy can be distributed along the dimension in which electron momentum is free later in our analysis.
 
 The negative voltages $V_{sg1}$ and $V_{sg2}$, applied at the split-gate terminals $SG1$ and $SG2$, provide a confinement potential for the electrons crossing the channel ballistically.
@@ -578,7 +578,7 @@ $G = G_0\ \Sigma_{i,j} |s_{ij}|^2$
 
 # ╔═╡ c2f6b348-8d84-11eb-2b07-d585477a2f50
 md"""
-### Numerical Solve Utils
+### Numerical Solve Block Functions
 """
 
 # ╔═╡ 210393f2-65ad-11eb-3dc0-0bcab1b97c73
@@ -787,7 +787,22 @@ begin
 end
 
 # ╔═╡ 96452cb8-9071-11eb-191e-434f5df7af07
+# savefig(fig_clean, "dense_clean_quantised_G.png") # uncommment to save plot above
 
+# ╔═╡ f0f515f7-a11b-4ec3-b882-92b934e5d87a
+# savefig(fig_impurity, "dense_dirty_quantised_G.svg") # uncomment to save plot above
+
+# ╔═╡ 6af5daff-fc93-443e-ae0a-002f7b943e5b
+md"""
+The graphs above, especially the impurity conductance trace, seems too cluttered, this prevents us being able to really distinguish between traces and observe the oscillations in the conductance.
+
+__To rectify this -- plot traces in steps of ``10`` from `G_im`.__
+"""
+
+# ╔═╡ c6a7a888-8506-442d-9234-ee38bf53cc1d
+md"""
+#### Impurity Testing
+"""
 
 # ╔═╡ cfecb1d8-8fc5-11eb-3d49-3f7edba7de29
 function local_sin_imp(μ, N, L, imp_A, x_spread, y_spread, xtune, ytune, smooth_A, xL=1., yL=1.)
@@ -827,12 +842,72 @@ begin
 	G_im = []
 	μ_im = []
 	
-	for b_height in 0.3:0.1:0.8
+	for b_height in 0.3:0.01:1.0
 		G_loc, μ_loc = conductance_gen2(N, L, 0.1, 0.9, b_height, 200)
 		push!(G_im, G_loc)
 		push!(μ_im, μ_loc)
 	end
 end
+
+# ╔═╡ f3987e2a-06d4-4f96-86ee-991c395226c8
+begin
+	gr()
+	fig_impurity = plot(μ_im[1], G_im[1])
+	
+	for i in 2:length(G_im)
+		plot!(μ_im[i], G_im[i])
+	end
+	
+	plot!(
+		# title & labels
+		title="Impurity Simulated Quantised Conductance",
+		xlabel="Potential μ",
+		ylabel="Conductance (Gₒ)",
+		# title & labels geometry
+		titlefontsize=14,
+		guidefontsize=14,
+		tickfontsize=14,
+		# annotations
+		leg=false,
+		# x & y axis
+		yticks=0.0:1.0:10.0,
+		xticks=0.0:0.1:1.0
+	)
+	fig_impurity
+end
+
+# ╔═╡ a758ef64-039d-4b6e-ac92-a01e4a41f4ee
+length(G_im)
+
+# ╔═╡ 36f78314-f54b-4334-85cc-7ebe9424cd17
+begin
+	gr()
+	fig_space_impurity = plot(μ_im[1], G_im[1])
+	
+	for i in 4:5:length(G_im)
+		plot!(μ_im[i], G_im[i])
+	end
+	
+	plot!(
+		# title & labels
+		title="Impurity Spaced Simulated Quantised Conductance",
+		xlabel="Potential μ",
+		ylabel="Conductance (Gₒ)",
+		# title & labels geometry
+		titlefontsize=14,
+		guidefontsize=14,
+		tickfontsize=14,
+		# annotations
+		leg=false,
+		# x & y axis
+		yticks=0.0:1.0:10.0,
+		xticks=0.0:0.1:1.0,
+		# plot geometry
+	)
+end
+
+# ╔═╡ 6108e688-e2e1-4548-96c3-a44080ba3b53
+plotly(); plot(μ_im[30], G_im[30], yticks=0.0:1.0:10.0)
 
 # ╔═╡ 3875774a-8d87-11eb-321a-0f74a8dc4c73
 md"""
@@ -890,7 +965,7 @@ begin
 	G_t = []
 	μ_t = []
 	
-	for b_height in 0.3:0.1:0.8
+	for b_height in 0.3:0.01:1.0
 		G_loc, μ_loc = conductance_gen(N, L, 0.1, 0.9, b_height, 200)
 		push!(G_t, G_loc)
 		push!(μ_t, μ_loc)
@@ -899,46 +974,30 @@ end
 
 # ╔═╡ 34f22ce4-906d-11eb-28f5-4d84d9fecd6d
 begin
-	barrier_height = 0.3:0.1:0.8
+	barrier_height = 0.3:0.01:1.0
 	b1 = "μ = " * string(barrier_height[1])
-	fig = plot(μ_t[1], G_t[1], label=b1)
+	fig_clean = plot(μ_t[1], G_t[1], label=b1)
 	for i in 2:length(G_t)
 		μ_base = "μ = " * string(barrier_height[i])
 		plot!(μ_t[i], G_t[i], label=μ_base)
 	end
-	plot!(title="Clean Simulated Quantised Conductance",
-		titlefontsize=18,
+	plot!(
+		# title & labels
+		title="Clean Simulated Quantised Conductance",
 		xlabel="Potential μ",
 		ylabel="Conductance (Gₒ)",
-		guidefontsize=16,
+		# title & labels geometry
+		titlefontsize=14,
+		guidefontsize=14,
 		tickfontsize=14,
+		# annotations
+		leg=false,
+		# x & y axis
 		xticks=0.1:0.1:0.8,
-		yticks=0.0:1.0:10.0,
-		leg=:topleft,
-		legendfontsize=13)
-	savefig(fig, "clean_sim.svg")
-	@show fig
-end
-
-# ╔═╡ ccc9dd42-9071-11eb-232f-f1f77b05c65e
-begin
-	fig2 = plot(μ_im[1], G_im[1], label=b1)
-	for i in 2:length(G_im)
-		μ_base = "μ = " * string(barrier_height[i])
-		plot!(μ_im[i], G_im[i], label=μ_base)
-	end
-	plot!(title="Impurity Simulated Quantised Conductance",
-		titlefontsize=18,
-		xlabel="Potential μ",
-		ylabel="Conductance (Gₒ)",
-		guidefontsize=16,
-		tickfontsize=14,
-		xticks=0.1:0.1:0.8,
-		yticks=0.0:1.0:10.0,
-		leg=:topleft,
-		legendfontsize=13)
-	savefig(fig2, "dirty_sim.svg")
-	@show fig2
+		yticks=0.0:1.0:10.0
+	)
+	
+	fig_clean
 end
 
 # ╔═╡ 602d89d4-8dbc-11eb-3095-553df225ff7d
@@ -1006,6 +1065,7 @@ savefig(p_smooth, "p_smooth.svg")
 
 # ╔═╡ 0b8b2316-8fc7-11eb-25af-930765cb3f88
 begin
+	gr()
 	surface(local_sin_imp(0.4, 40, 100, -0.05, 20, 20, 0.1, 0.1, 0.5, 1., 1.),
 			title="QPC modified saddle-point potential profile")
 end
@@ -1135,7 +1195,24 @@ begin
 end
 
 # ╔═╡ b6128210-8fc8-11eb-0e3d-a11dc7195e78
-surface(local_sin_imp(μ, N, L, -0.05, 20, 40, 0.1, 0.1, 0.6, 1., 1.))
+surface(
+	place_impurity(
+		smooth_potential(
+			0.4,
+			40, 
+			100,
+			1.,
+			1.,
+			0.6
+		),
+		20,
+		50,
+		0.01
+	)
+)
+
+# ╔═╡ 44e76071-4ced-450f-b815-4ee277570980
+smooth_potential(0.4, N, L, 1., 1., 0.6)
 
 # ╔═╡ a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
 plot(energies2, G2, leg=false)
@@ -1298,12 +1375,14 @@ begin
 end;
 
 # ╔═╡ 5056efdc-7dd6-11eb-21d3-e13768d765d9
-clean_plot = plot(cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
-				cleanG[1:(size(cleanG)[1]), 1:(size(cleanG)[2])],
-				title="Channel Conductance of a Clean QPC",
-				xlabel="Split Gate Voltage (V)",
-				ylabel="Channel Conductance G (μS)",
-				leg=false)
+clean_plot = plot(
+	cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
+	cleanG[1:(size(cleanG)[1]), 1:(size(cleanG)[2])],
+	title="Channel Conductance of a Clean QPC",
+	xlabel="Split Gate Voltage (V)",
+	ylabel="Channel Conductance G (μS)",
+	leg=false
+)
 
 # ╔═╡ fa5d996e-7dd5-11eb-3010-8935856e0b68
 noisy_plot = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
@@ -1358,6 +1437,9 @@ begin
 		@show noisy_plot2
 end
 
+# ╔═╡ 9bb30ee2-b6de-431e-8e7d-3761a2084fe4
+
+
 # ╔═╡ Cell order:
 # ╟─7ee2fb54-433c-11eb-1f9b-3528ac7148a4
 # ╟─e616e6b0-61fe-11eb-398b-4fde45cba90f
@@ -1393,8 +1475,8 @@ end
 # ╠═a1f94578-8d84-11eb-1de6-03bab5d1e34e
 # ╠═6b63b052-64eb-11eb-1a62-33262062ece1
 # ╟─deb49ea2-8d85-11eb-34ed-7b71e4b3cef8
-# ╠═2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
-# ╠═c2f6b348-8d84-11eb-2b07-d585477a2f50
+# ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
+# ╟─c2f6b348-8d84-11eb-2b07-d585477a2f50
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═ce242db8-8d84-11eb-1f4d-532062e2cb6d
 # ╠═0a306d9c-8d85-11eb-3ceb-737958085066
@@ -1407,12 +1489,18 @@ end
 # ╠═754fd72a-8f2b-11eb-381b-c19ea1fed40a
 # ╟─0c4227d0-9069-11eb-2ffc-9b8d4d9dc3cf
 # ╠═47f47e16-8d87-11eb-2734-fbe36fd94431
-# ╠═5205f976-906a-11eb-329b-c9937537fa31
+# ╟─5205f976-906a-11eb-329b-c9937537fa31
 # ╠═50f917b4-906c-11eb-1037-cfbbf1cb3bc0
 # ╠═34f22ce4-906d-11eb-28f5-4d84d9fecd6d
-# ╟─96452cb8-9071-11eb-191e-434f5df7af07
+# ╠═96452cb8-9071-11eb-191e-434f5df7af07
 # ╠═971ea8f8-9071-11eb-0d85-b1186f4d3aea
-# ╠═ccc9dd42-9071-11eb-232f-f1f77b05c65e
+# ╠═f3987e2a-06d4-4f96-86ee-991c395226c8
+# ╠═f0f515f7-a11b-4ec3-b882-92b934e5d87a
+# ╟─6af5daff-fc93-443e-ae0a-002f7b943e5b
+# ╠═a758ef64-039d-4b6e-ac92-a01e4a41f4ee
+# ╠═36f78314-f54b-4334-85cc-7ebe9424cd17
+# ╟─c6a7a888-8506-442d-9234-ee38bf53cc1d
+# ╠═6108e688-e2e1-4548-96c3-a44080ba3b53
 # ╠═47f94af8-9071-11eb-04c5-2d2fc8cf6035
 # ╠═cfecb1d8-8fc5-11eb-3d49-3f7edba7de29
 # ╟─3875774a-8d87-11eb-321a-0f74a8dc4c73
@@ -1446,6 +1534,7 @@ end
 # ╠═53ddbc9c-8d87-11eb-050e-11c509947dbf
 # ╠═97ea8df4-8f47-11eb-1f43-1771fffdbf0d
 # ╠═b6128210-8fc8-11eb-0e3d-a11dc7195e78
+# ╠═44e76071-4ced-450f-b815-4ee277570980
 # ╠═a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
 # ╠═f7b17256-8331-11eb-1542-0d28cdf6478f
 # ╟─854b06e2-87fc-11eb-1d4a-058609b638d3
@@ -1457,3 +1546,4 @@ end
 # ╠═5e9936fa-72e5-11eb-078f-bd9e193eda1a
 # ╠═a6f19760-8d81-11eb-2e7e-6dae07c47af9
 # ╠═d8cbc6e4-7dbd-11eb-378e-8bf7a5d244f2
+# ╠═9bb30ee2-b6de-431e-8e7d-3761a2084fe4
