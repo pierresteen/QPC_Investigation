@@ -1,9 +1,28 @@
-# Chalker-Coddington Network Model Scattering Functions:
-module ccnscattering
-export T, S, sum_S, gen_S_total, prod_T
+## CCN model system property and scattering matrix 'constructor' functions
+module System
+
+using LinearAlgebra
+
+include("types.jl")
+using .Types
+
+export gen_S_total, sum_S, S, T
 
 """
-	T(V_y)
+	H_mod()
+
+Builds a Hamiltonian (tight-binding model) for the QPC system.
+Used later in generating the transfer matrix of the system and the numerical algorithm for solving the quantum transport of the system.
+"""
+function H_mod(N, μ, t)
+	v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
+	H = diagm(-1 => -v) + diagm(0 => (4 * t) * ones(Float64, N) .- μ) + diagm(1 => -v)
+	
+	return H
+end
+
+"""
+	T(μ, N)
 
 Generates a diagonal tranfer data type `T::T_data` for given bias potentail: `μ`.
 `T` is a `2N`x`2N` matrix, with three main diagonals at `diagind[1] = 0, 5, -5`.
@@ -12,10 +31,9 @@ function T(μ, N)
 	# create complex float type matrix with 1im diagonal values
 	im_mat = zeros(Complex{Float64}, N, N)
 	im_mat[diagind(im_mat)] .= 1im
-	v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
 
 	# create tight-binding Hamiltonian model
-	H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, N) .- μ) + diagm(1 => -v)
+	H = H_mod(N, μ, 1)
 	
 	# form blocked transfer matrix blocks t_ij from $im_mat, $v and $H
 	t_11 = -im_mat .+ 0.5 * H

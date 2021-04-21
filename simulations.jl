@@ -490,7 +490,7 @@ end
 """
 	prod_T(x::T_data, y::T_data)
 
-Mutliple dispatch for multiplying two objects `::T_data` composed of a `self` matrix and four sub-matrix blocks `T_ij`.
+Multiple dispatch for multiplying two objects `::T_data` composed of a `self` matrix and four sub-matrix blocks `T_ij`.
 """
 function prod_T(x::T_data, y::T_data)
 	return T_data((x.self * y.self),
@@ -502,7 +502,7 @@ end
 
 # ╔═╡ b3fb891c-8d83-11eb-31d8-3fea8e634889
 md"""
-## System Energy Calculations
+## Clean System Potentials
 """
 
 # ╔═╡ 212d911a-7dc3-11eb-11ee-333220a641e5
@@ -531,13 +531,6 @@ function smooth_potential(μ, N, L, xL=1., yL=1., amp=1.)
 	
 	return (-0.5 * amp) * (tanh.(X.^2 - Y.^2) .+ 1) .+ μ
 end
-
-# ╔═╡ bba2787c-8db9-11eb-0566-7d3b8f46e43d
-# surface(smooth_potential(0.5, 40, 100, 1., 1., 1.),
-# 		#ticks=false,
-# 		xlabel="X",
-# 		ylabel="Y",
-# 		zlabel="Z")
 
 # ╔═╡ a1f94578-8d84-11eb-1de6-03bab5d1e34e
 md"""
@@ -637,6 +630,24 @@ function ψ_classify(λ_vec, λ_val)
 	return ψ_R, ψ_L, E_G, E_D
 end
 
+# ╔═╡ 0a306d9c-8d85-11eb-3ceb-737958085066
+"""
+	ψ_norms(ψR, ψL)
+
+Calculates and applies norming factors to wavefunctions `ψ_R` and `ψ_L`.
+"""
+function ψ_norms(N, ψR, ψL)
+	# evaluate wave function norms $ψₙ_R & $ψₙ_L
+	ψₙ_R = norm(ψR[(N+1):2*N]).^2 - norm(ψR[1:N]).^2
+	ψₙ_L = norm(ψL[1:N]).^2 - norm(ψL[(N+1):2*N]).^2
+	
+	# apply norming factors to wave funtions
+	ψ_R = ψR ./ √(abs(ψₙ_R))
+	ψ_L = ψL ./ √(abs(ψₙ_L))
+	
+	return ψ_R, ψ_L
+end
+
 # ╔═╡ 76e232ba-8d85-11eb-1e66-d7243264b5ed
 """
 	build_Uᵣ(N, Sₜ, ψᵣ)
@@ -686,8 +697,8 @@ system_intermediary(Uᵣ, Uₗ, ψ_L, E_D) -> coeffs::Array{Complex{Float64},2},
 function system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
 	coeffs = inv(Uₗ) * Uᵣ		# coefficients matrix
 	
-	count_in	= size(ψ_L)[2]	# number of incident waves
-	count_evan	= size(E_D)[2]	# number of evanescent waves
+	count_in = size(ψ_L)[2]	# number of incident waves
+	count_evan = size(E_D)[2]	# number of evanescent waves
 	
 	return coeffs, count_in, count_evan
 end
@@ -714,36 +725,6 @@ md"""
 ## Numerical Solve Algorithm
 """
 
-# ╔═╡ 0c4227d0-9069-11eb-2ffc-9b8d4d9dc3cf
-md"""
-## Poster Results
-"""
-
-# ╔═╡ 47f47e16-8d87-11eb-2734-fbe36fd94431
-begin
-	N = 40
-	L = 100
-	μ = 0.5
-end;
-
-# ╔═╡ 0a306d9c-8d85-11eb-3ceb-737958085066
-"""
-	ψ_norms(ψR, ψL)
-
-Calculates and applies norming factors to wavefunctions `ψ_R` and `ψ_L`.
-"""
-function ψ_norms(ψR, ψL)
-	# evaluate wave function norms $ψₙ_R & $ψₙ_L
-	ψₙ_R = norm(ψR[(N+1):2*N]).^2 - norm(ψR[1:N]).^2
-	ψₙ_L = norm(ψL[1:N]).^2 - norm(ψL[(N+1):2*N]).^2
-	
-	# apply norming factors to wave funtions
-	ψ_R = ψR ./ √(abs(ψₙ_R))
-	ψ_L = ψL ./ √(abs(ψₙ_L))
-	
-	return ψ_R, ψ_L
-end
-
 # ╔═╡ cffd655e-8d85-11eb-262c-c35e8d38a7d1
 """
 	system_solve(μ, V, N, L, i)
@@ -765,7 +746,7 @@ function system_solve(μ, V, N, L, i)
 	ψ_R, ψ_L, E_G, E_D = ψ_classify(λ_vecs, λ_vals)
 
 	# evaluate and apply ψ norms
-	ψ_R, ψ_L = ψ_norms(ψ_R, ψ_L)
+	ψ_R, ψ_L = ψ_norms(N, ψ_R, ψ_L)
 	
 	# form system of equation right- and left-hand side terms
 	Uₗ = build_Uₗ(N, S_T, ψ_R, ψ_L, E_G, E_D)
@@ -780,333 +761,76 @@ function system_solve(μ, V, N, L, i)
 	return solution_params
 end
 
+# ╔═╡ e125a71d-37df-4f47-bebe-62ea8bccf3e2
+function resolve_R(coeffs, count_in, count_ev)
+	τ = coeffs[1:(count_in), :]
+	α = coeffs[(count_in+1):(count_in+count_ev), :]
+	r = coeffs[(count_in+count_ev+1):(2*count_in+count_ev), :]
+	β = coeffs[(2*count_in+count_ev+1):(2*count_in+2*count_ev), :]
+	
+	R = norm(r)^2 # final coductance calculation
+	
+	return R
+end
+
+# ╔═╡ a3adb388-be9b-49ec-99c6-537e87c57cee
+function system_solve_R(μ, V, N, L, i)
+	# generate scattering matrices S_T::S_data
+	S_T = gen_S_total(V, L)
+	
+	# extract eigenvectors & eigenvalues from T::T_data.self
+	λ = eigen(T(μ, N).self, sortby=nothing, permute=true)
+	
+	# round eigen-components to 11 decimal places
+	λ_vals = round.(λ.values, digits=10)
+	λ_vecs = -1 .* round.(λ.vectors, digits=10)
+
+	# sort and index: ψ_R & ψ_L (un-normed) + E_G & E_D (growing and decreasing)
+	ψ_R, ψ_L, E_G, E_D = ψ_classify(λ_vecs, λ_vals)
+
+	# evaluate and apply ψ norms
+	ψ_R, ψ_L = ψ_norms(N, ψ_R, ψ_L)
+	
+	# form system of equation right- and left-hand side terms
+	Uₗ = build_Uₗ(N, S_T, ψ_R, ψ_L, E_G, E_D)
+	Uᵣ = build_Uᵣ(N, S_T, ψ_R)
+	
+	# evaluate coefficient and store in matrix form
+	coeff, num_I, num_E = system_intermediary(Uᵣ, Uₗ, ψ_L, E_D)
+	
+	# evaluate system solutions
+	solution_params = resolve_R(coeff, num_I, num_E)
+	
+	return solution_params
+end
+
+# ╔═╡ 973c91dd-58e7-4462-a792-85ad18eca925
+md"""
+⚠️ __Algorithm validity check__ ⚠️
+
+Ok if number below = 2.97874...
+"""
+
 # ╔═╡ 754fd72a-8f2b-11eb-381b-c19ea1fed40a
 begin
 	V_test = smooth_potential(0.4, 40, 100, 1., 1., 0.5)
-	system_solve(0.4, V_test, 40, 100, 0.4)
-end
-
-# ╔═╡ 96452cb8-9071-11eb-191e-434f5df7af07
-# savefig(fig_clean, "dense_clean_quantised_G.png") # uncommment to save plot above
-
-# ╔═╡ f0f515f7-a11b-4ec3-b882-92b934e5d87a
-# savefig(fig_impurity, "dense_dirty_quantised_G.svg") # uncomment to save plot above
-
-# ╔═╡ 6af5daff-fc93-443e-ae0a-002f7b943e5b
-md"""
-The graphs above, especially the impurity conductance trace, seems too cluttered, this prevents us being able to really distinguish between traces and observe the oscillations in the conductance.
-
-__To rectify this -- plot traces in steps of ``10`` from `G_im`.__
-"""
-
-# ╔═╡ c6a7a888-8506-442d-9234-ee38bf53cc1d
-md"""
-#### Impurity Testing
-"""
-
-# ╔═╡ cfecb1d8-8fc5-11eb-3d49-3f7edba7de29
-function local_sin_imp(μ, N, L, imp_A, x_spread, y_spread, xtune, ytune, smooth_A, xL=1., yL=1.)
-	px = Float64.(range(-(x_spread/2), (x_spread/2), length=Int((x_spread/N)*N)))
-	py = Float64.(range(-(y_spread/2), (x_spread/2), length=Int((y_spread/L)*L)))
-	
-	X, Y = meshgrid(px, py)
-
-	add_imp = - imp_A .* (cos.(xtune .* X) + cos.(ytune .* Y))
-	nom_pot = smooth_potential(μ, N, L, xL, yL, smooth_A)
-	
-	xlower_i = Int(N/2 - x_spread/2)
-	xupper_i = Int(N/2 + x_spread/2 - 1)
-	ylower_i = Int(L/2 - y_spread/2)
-	yupper_i = Int(L/2 + y_spread/2 - 1)
-	
-	nom_pot[xlower_i:xupper_i, ylower_i:yupper_i] .+= add_imp
-	
-	return nom_pot
-end
-
-# ╔═╡ 47f94af8-9071-11eb-04c5-2d2fc8cf6035
-function conductance_gen2(N, L, gate_min, gate_max, barrier_height, precision)
-	G = []
-	gate_energies = range(gate_min, gate_max, length=precision)
-	
-	for g_en in gate_energies
-		V_en = local_sin_imp(g_en, 40, 100, -0.05, 20, 20, 0.5, 0.1, barrier_height, 1., 1.)
-		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
-	end
-	
-	return G, gate_energies
-end
-
-# ╔═╡ 971ea8f8-9071-11eb-0d85-b1186f4d3aea
-begin
-	G_im = []
-	μ_im = []
-	
-	for b_height in 0.3:0.01:1.0
-		G_loc, μ_loc = conductance_gen2(N, L, 0.1, 0.9, b_height, 200)
-		push!(G_im, G_loc)
-		push!(μ_im, μ_loc)
-	end
-end
-
-# ╔═╡ f3987e2a-06d4-4f96-86ee-991c395226c8
-begin
-	gr()
-	fig_impurity = plot(μ_im[1], G_im[1])
-	
-	for i in 2:length(G_im)
-		plot!(μ_im[i], G_im[i])
-	end
-	
-	plot!(
-		# title & labels
-		title="Impurity Simulated Quantised Conductance",
-		xlabel="Potential μ",
-		ylabel="Conductance (Gₒ)",
-		# title & labels geometry
-		titlefontsize=14,
-		guidefontsize=14,
-		tickfontsize=14,
-		# annotations
-		leg=false,
-		# x & y axis
-		yticks=0.0:1.0:10.0,
-		xticks=0.0:0.1:1.0
-	)
-	fig_impurity
-end
-
-# ╔═╡ a758ef64-039d-4b6e-ac92-a01e4a41f4ee
-length(G_im)
-
-# ╔═╡ 36f78314-f54b-4334-85cc-7ebe9424cd17
-begin
-	gr()
-	fig_space_impurity = plot(μ_im[1], G_im[1])
-	
-	for i in 4:5:length(G_im)
-		plot!(μ_im[i], G_im[i])
-	end
-	
-	plot!(
-		# title & labels
-		title="Impurity Spaced Simulated Quantised Conductance",
-		xlabel="Potential μ",
-		ylabel="Conductance (Gₒ)",
-		# title & labels geometry
-		titlefontsize=14,
-		guidefontsize=14,
-		tickfontsize=14,
-		# annotations
-		leg=false,
-		# x & y axis
-		yticks=0.0:1.0:10.0,
-		xticks=0.0:0.1:1.0,
-		# plot geometry
-	)
-end
-
-# ╔═╡ 6108e688-e2e1-4548-96c3-a44080ba3b53
-plotly(); plot(μ_im[30], G_im[30], yticks=0.0:1.0:10.0)
-
-# ╔═╡ 3875774a-8d87-11eb-321a-0f74a8dc4c73
-md"""
-## Simulation Results
-"""
-
-# ╔═╡ d5a61ac2-9074-11eb-1948-934b10dcb64c
-surf_clean = surface(smooth_potential(0.5, N, L, 1., 1., 0.6),
-		title="Reference Potential Profile (Clean)",
-		titlefontsize=18,
-		xlabel="Y",
-		ylabel="X",
-		guidefontsize=15,
-		tickfontsize=12)
-
-# ╔═╡ 6b75a64e-9075-11eb-0ade-294cd8ee447a
-savefig(surf_clean, "surf_clean.svg")
-
-# ╔═╡ 878ec3c4-9075-11eb-0e07-a3696ce0e839
-surf_dirty = surface(local_sin_imp(0.5, 40, 100, -0.05, 20, 20, 0.02, 0.1, 0.6, 1., 1.),
-	title="Reference Potential Profile (Impurity)",
-		titlefontsize=18,
-		xlabel="Y",
-		ylabel="X",
-		guidefontsize=15,
-		tickfontsize=12)
-
-# ╔═╡ c53f3960-9075-11eb-32b3-17b4dd27707f
-savefig(surf_dirty, "surf_dirty.svg")
-
-# ╔═╡ ef295a00-8db7-11eb-1f02-db93c59bd24f
-function conductance_gen(N, L, gate_min, gate_max, barrier_height, precision)
-	G = []
-	gate_energies = range(gate_min, gate_max, length=precision)
-	
-	for g_en in gate_energies
-		V_en = smooth_potential(g_en, N, L, 1., 1., barrier_height)
-		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
-	end
-	
-	return G, gate_energies
-end
-
-# ╔═╡ 5205f976-906a-11eb-329b-c9937537fa31
-# Clean quantised conductance
-begin
-	G_test, ens_test = conductance_gen(N, L, 0.2, 0.7, 0.5, 50)
-	G_test2, ens_test2 = conductance_gen(N, L, 0.2, 0.7, 0.6, 50)
-	plot(ens_test, G_test, leg=false)
-	plot!(ens_test2, G_test2, leg=false)
-end
-
-# ╔═╡ 50f917b4-906c-11eb-1037-cfbbf1cb3bc0
-begin
-	G_t = []
-	μ_t = []
-	
-	for b_height in 0.3:0.01:1.0
-		G_loc, μ_loc = conductance_gen(N, L, 0.1, 0.9, b_height, 200)
-		push!(G_t, G_loc)
-		push!(μ_t, μ_loc)
-	end
-end
-
-# ╔═╡ 34f22ce4-906d-11eb-28f5-4d84d9fecd6d
-begin
-	barrier_height = 0.3:0.01:1.0
-	b1 = "μ = " * string(barrier_height[1])
-	fig_clean = plot(μ_t[1], G_t[1], label=b1)
-	for i in 2:length(G_t)
-		μ_base = "μ = " * string(barrier_height[i])
-		plot!(μ_t[i], G_t[i], label=μ_base)
-	end
-	plot!(
-		# title & labels
-		title="Clean Simulated Quantised Conductance",
-		xlabel="Potential μ",
-		ylabel="Conductance (Gₒ)",
-		# title & labels geometry
-		titlefontsize=14,
-		guidefontsize=14,
-		tickfontsize=14,
-		# annotations
-		leg=false,
-		# x & y axis
-		xticks=0.1:0.1:0.8,
-		yticks=0.0:1.0:10.0
-	)
-	
-	fig_clean
-end
-
-# ╔═╡ 602d89d4-8dbc-11eb-3095-553df225ff7d
-begin
-	G_traces = []
-	for i in 0.2:0.2:0.8
-		G_i, ens = conductance_gen(40, 100, 0.1, 1.5, i, 20)
-		push!(G_traces, [G_i ens])
-	end
+	system_solve(0.4, V_test, 40, 100, 0.4)[1]
 end
 
 # ╔═╡ f09e2df2-8e37-11eb-3537-ad7491c66146
 md"""
 ## Simulating Impurity
 
-So far, we have used a tight-binding Hamiltonian model, given by:
-```julia
-v = ones(Float64, N-1)	# (N-1)-length array of Float 1s
-H = diagm(-1 => -v) + diagm(0 => 4*ones(Float64, N) .- μ) + diagm(1 => -v)
-```
+In this section we attempt to simulate impurities in the QPC device, in form of exited ions.
+We will achieve this by producing a modified barrier potential to map to the network nodes.
 
-### Impurity Modified Potential Map 
+Localised impurities should be somewhat well modelled by local periodic potentials, added to the hyperbolic paraboloid base.
 """
 
-# ╔═╡ 91b4b744-8328-11eb-017b-6153bb61cfb2
+# ╔═╡ 3875774a-8d87-11eb-321a-0f74a8dc4c73
+md"""
+### Impurity System Potentials
 """
-	place_impurity(grid_pot, loc_x, loc_y)
-
-Generates a point charge impurity at `(loc_x, loc_y)` in an otherwise smooth potential  profile domain.
-"""
-function place_impurity(grid_pot, loc_x, loc_y, spread, A_imp)
-	map_size = size(grid_pot)
-	mesh_size = zeros(Float64, map_size[1], map_size[2])
-	
-	# check that impurity locations provided are within network graph
-	@assert all((loc_x, loc_y) .<= map_size)
-	@assert all((loc_x, loc_y) .>= (1,1))
-	for i in 1:map_size[1], j in 1:map_size[2]
-		r = sqrt((loc_x - i)^2 + (loc_y - j)^2)
-		V = abs(1/(4*pi*ε_0) * (spread * e/r))
-		V = A_imp * cos(spread * r)
-		if V == Inf
-			mesh_size[i,j] = 0.05
-		else
-			mesh_size[i,j] = V
-		end
-	end
-	
-	return grid_pot + mesh_size
-end
-
-# ╔═╡ 1c98b9ae-8fca-11eb-1fb4-2f5b5826949b
-begin
-	gr()
-	p_smooth = surface(place_impurity(smooth_potential(0.4, N, L, 1., 1., 0.6), 20, 50, 0.01, 0.1),
-			title="QPC saddle-point potential profile",
-			titlefontsize=18,
-			xlabel="Y",
-			ylabel="X",
-			zlabel="E")
-end
-
-# ╔═╡ 7bf5e4d2-905e-11eb-324d-674214dcb962
-savefig(p_smooth, "p_smooth.svg")
-
-# ╔═╡ 0b8b2316-8fc7-11eb-25af-930765cb3f88
-begin
-	gr()
-	surface(local_sin_imp(0.4, 40, 100, -0.05, 20, 20, 0.1, 0.1, 0.5, 1., 1.),
-			title="QPC modified saddle-point potential profile")
-end
-
-# ╔═╡ fe42a016-9029-11eb-2bfa-2f90a7a38816
-begin
-	G3 = []
-	energies3 = range(0.1, 0.5, length=100)
-	for en in energies3
-		#V = impurity_potential(en, N, L, 0.0001, 10, 10, 1., 1.)
-		V3 = local_sin_imp(0.4, N, L, -0.05, 20, 20, 0.1, 0.5, en, 1., 1.)
-		push!(G3, system_solve(en, V3, N, L, en)[1])
-	end
-end
-
-# ╔═╡ ed59c378-9054-11eb-2090-0f8beb23b855
-begin
-	G4 = []
-	energies4 = range(0.1, 0.8, length=200)
-	for en in energies4
-		#V = impurity_potential(en, N, L, 0.0001, 10, 10, 1., 1.)
-		V4 = smooth_potential(μ, N, L, 1., 1., 0.5)
-		push!(G4, system_solve(en, V4, N, L, en)[1])
-	end
-end
-
-# ╔═╡ fda8c6a4-9068-11eb-0b67-0b0d9a0da15d
-surface(smooth_potential(μ, N, L, 1., 1., 0.5))
-
-# ╔═╡ 3df5e43a-902b-11eb-1501-4dd67f1bc4b0
-begin
-	surface(local_sin_imp(μ, N, L, -0.05, 20, 20, 0.5, 0.1, 0.5, 1., 1.))
-end
-
-# ╔═╡ 55c634ea-8f82-11eb-259a-3b7f881c4d80
-function impurity_potential3(μ, N, L, tune_y, sub_y, smooth_A, xL=1., yL=1.)
-	smp = smooth_potential(μ, N, L, xL, yL, smooth_A)
-	imp = impurity_potential2(μ, N, L, tune_y, sub_y, xL, yL)
-	
-	return smp + imp
-end
 
 # ╔═╡ 69e57db4-8f2f-11eb-04fa-052bf0433dea
 function impurity_potential(μ, N, L, A, xtune, ytune, smooth_A, xL=1., yL=1.)
@@ -1120,28 +844,630 @@ function impurity_potential(μ, N, L, A, xtune, ytune, smooth_A, xL=1., yL=1.)
 	return smooth_potential(μ, N, L, xL, yL, smooth_A) + add_imp
 end
 
-# ╔═╡ fd1585d4-8f2f-11eb-21c5-f96dc290073c
-begin
-	gr()
-	surface(impurity_potential(μ, N, L, 0.1, 20, 20, 0.6, 1., 1.),
-			title="QPC noisy saddle-point potential profile")
-end
+# ╔═╡ 442a3b4f-632d-4a2a-8813-912aa14c3031
+md"""
+#### Gaussian Impurity Function
 
-# ╔═╡ 83d9e9fa-8fc3-11eb-2a8a-f90d743fd9b4
-function local_impurity(b, x_loc, x_mod, y_loc, y_mod, xL=1., yL=1.)
+Using a 2D gaussian function to model the potential dropped by the exited ionic impurity.
+The barrier potential will be a sum of: the hyperbolic paraboloid and the gaussian potential.
+We can control the location of the gaussian's maxima by setting the 'mean' for the `x = N` and `y = L` axes.
+
+2D Gaussian function:
+
+```math
+\text{gaussian}(x,y) =
+A \cdot
+\exp\left(
+	-\left(
+		\frac{(x - x_0)^2}{2\sigma_x^2}
+		+
+		\frac{(y - y_0)^2}{2\sigma_y^2}
+	\right)
+\right)
+```
+
+"""
+
+# ╔═╡ 2250cb4c-0065-4ce4-8c5a-205392be0909
+"""
+	gaussian_impurity_potential(μ, N, L; x_pos=(N/2), y_pos=(L/2), imp_amp=0.2, xL=1., yL=1., Vg_amp=1.)
+
+Generates a impure saddle-point potential, with a gaussian pulse modelling an exited ionic impurity for system dimensions `width = N` and `length = L`.
+"""
+function gaussian_impurity_potential(μ, N, L; x_pos=(N/2), y_pos=(L/2), σ_x=0.2, σ_y=0.2, imp_amp=0.2, xL=1., yL=1., gate_amp=1.)
 	px = Float64.(range(-xL, xL, length=N))
 	py = Float64.(range(-yL, yL, length=L))
 	
 	X, Y = meshgrid(px, py)
+	x_0 = px[Int(x_pos)]
+	y_0 = py[Int(y_pos)]
 	
-	local_imp = b .* (((X ./ x_mod) .- x_loc).^2 + ((Y ./ y_mod) .- y_loc).^2)
+	saddle = (-0.5 * gate_amp) * (tanh.(X.^2 - Y.^2) .+ 1) .+ μ
 	
-	return local_imp
+	gaussian = imp_amp * exp.(-(((X .- x_0).^2 ./ (2 * σ_x^2)) + ((Y .- y_0).^2 ./ (2 * σ_y^2))))
+	
+	return gaussian .+ saddle
 end
+
+# ╔═╡ ef780500-363f-4f76-a59e-e4220afe344d
+function gaussian(μ, N, L; x_pos=(N/2), y_pos=(L/2), σ_x=0.2, σ_y=0.2, imp_amp=0.2, xL=1., yL=1., gate_amp=1.)
+	px = Float64.(range(-xL, xL, length=N))
+	py = Float64.(range(-yL, yL, length=L))
+	
+	X, Y = meshgrid(px, py)
+	x_0 = px[Int(x_pos)]
+	y_0 = py[Int(y_pos)]
+	
+	saddle = (-0.5 * gate_amp) * (tanh.(X.^2 - Y.^2) .+ 1) .+ μ
+	
+	gaussian = imp_amp * exp.(-(((X .- x_0).^2 ./ (2 * σ_x^2)) + ((Y .- y_0).^2 ./ (2 * σ_y^2))))
+	
+	return gaussian
+end
+
+# ╔═╡ 047a102e-3936-4269-93fb-d5530aaa495d
+function tester(μ, N, L)
+	px = Float64.(range(-1., 1., length=N))
+	py = Float64.(range(-1., 1., length=L))
+	
+	X, Y = meshgrid(px, py)
+	
+	return Y.^2 - X.^2 .+ μ
+end
+
+# ╔═╡ e67b1c41-efb8-448a-86a7-9918af1df1f8
+
+
+# ╔═╡ bf2b0abe-b2f8-4f88-a82f-22d839b33a27
+surface(tester(0.4, 40, 100))
+
+# ╔═╡ be491790-b3a8-42f2-8fbf-20d8a3d0c0f0
+md"""
+__Gaussian impurity - conductance and reflectance results__
+"""
+
+# ╔═╡ 3738fea4-522d-4160-a96d-c798ff0f4786
+md"""
+__Stronger Impurity simulation:__
+"""
+
+# ╔═╡ 6482750b-35b7-42da-94e4-a38e69a67bd6
+md"""
+__Clean experimental spaced --conductance and reflectance results__
+"""
+
+# ╔═╡ 57613f4f-9faf-4e9a-9951-8bd675edc72f
+
+
+# ╔═╡ 0c4227d0-9069-11eb-2ffc-9b8d4d9dc3cf
+md"""
+## Simulated Conductance Results
+In this section, we use all the components developed above to obtain numerical results for the quantised conductance of a quantum point contact.
+"""
+
+# ╔═╡ 65d696f4-d49a-41b4-aacd-4ac5be4de1ed
+md"""
+### Conductance Generators
+These functions enable us to automate the creation of multiple conductance traces.
+"""
+
+# ╔═╡ ef295a00-8db7-11eb-1f02-db93c59bd24f
+"""
+	conductance_gen(N, L, gate_min, gate_max, barrier_height, precision)
+
+Generate an array of quantised conductance results, simulated using a NEGF numerical algorithm.
+Also returns the array of gate energies used in generating G, as specified by the user via: `gate_max`, `gate_min` and `barrier_height`.
+"""
+function conductance_gen(N, L, gate_min, gate_max, barrier_height, precision)
+	G = []
+	gate_energies = range(gate_min, gate_max, length=precision)
+	
+	for g_en in gate_energies
+		V_en = smooth_potential(g_en, N, L, 1., 1., barrier_height)
+		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
+	end
+	
+	return G, gate_energies
+end
+
+# ╔═╡ e260588a-240c-49c4-aa16-02fb9c4fb741
+"""
+	conductance_gen3(N, L, gate_min, gate_max, barrier_height, precision)
+
+Impure system, quantised conductance generating function.
+"""
+function conductance_gen3(N, L, gate_min, gate_max, barrier_height, precision)
+	G = []
+	gate_energies = range(gate_min, gate_max, length=precision)
+	
+	for g_en in gate_energies
+		V_en = gaussian_impurity_potential(
+			g_en, N, L;
+			x_pos=20,
+			y_pos=50,
+			σ_x=0.1,
+			σ_y=0.1,
+			imp_amp=0.2,
+			xL=1.,
+			yL=1.,
+			gate_amp=barrier_height
+		)
+		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
+	end
+	
+	return G, gate_energies
+end
+
+# ╔═╡ 7ef77e84-c92c-4a21-9e44-8bcb9989c287
+function conductance_gen4(N, L, gate_min, gate_max, barrier_height, precision)
+	G = []
+	gate_energies = range(gate_min, gate_max, length=precision)
+	
+	for g_en in gate_energies
+		V_en = gaussian_impurity_potential(
+			g_en, N, L;
+			x_pos=20,
+			y_pos=50,
+			σ_x=0.2,
+			σ_y=0.2,
+			imp_amp=0.3,
+			xL=1.,
+			yL=1.,
+			gate_amp=barrier_height
+		)
+		push!(G, system_solve(g_en, V_en, N, L, g_en)[1])
+	end
+	
+	return G, gate_energies
+end
+
+# ╔═╡ 56777301-68ca-4840-b6a5-86f4bb3dc81a
+md"""
+#### Dense Conductance Plots
+
+Commented out below are the densely simulated (high accuracy) conductance results.
+They are left commented to avoid running a 2000 seconds long cell upon notebook start-up.
+"""
+
+# ╔═╡ 47f47e16-8d87-11eb-2734-fbe36fd94431
+begin
+	N = 40
+	L = 100
+	μ = 0.5
+end;
+
+# ╔═╡ d5a61ac2-9074-11eb-1948-934b10dcb64c
+surf_clean = surface(smooth_potential(0.5, N, L, 1., 1., 0.6),
+	title="Hyperbolic Paraboloid - Saddle-Point Potential Profile",
+	titlefont=(13, "times"),
+	xlabel="Y",
+	ylabel="X",
+	guidefont=(12,"times"),
+	tickfont=(9,"times"),
+	legendfontsize=12
+)
+
+# ╔═╡ 20312b33-55c7-4fb6-8fe6-4aa386fddb61
+savefig(surf_clean, "clean_saddle_map.png")
+
+# ╔═╡ fd1585d4-8f2f-11eb-21c5-f96dc290073c
+begin
+	gr()
+	f_dumb = surface(
+		impurity_potential(μ, N, L, 0.1, 20, 20, 0.6, 1., 1.),
+		title="QPC Impurity Potential Mapping - Too Aggressive",
+		titlefont=(13,"times")
+	)
+end
+
+# ╔═╡ 5077c151-fa25-4312-9e93-d52e8301e1aa
+savefig(f_dumb, "bad_impurity_pot.png")
+
+# ╔═╡ 180d8892-8cd9-4d3f-bf69-8aeac076fc57
+gauss_surf = surface(
+	gaussian(μ, N, L),
+	title="Gaussian Localised Impurity Potential Approximation",
+	titlefont=(13, "times"),
+	xlabel="Y",
+	ylabel="X",
+	guidefont=(12,"times"),
+	tickfont=(9,"times"),
+	legendfontsize=12
+)
+
+# ╔═╡ 88d9513a-c8ee-451b-ac18-11836c0877bb
+savefig(gauss_surf, "gaussian_potential.png")
+
+# ╔═╡ 753d2cfa-df10-4216-85df-7292ef44e692
+impu_surf = surface(
+	gaussian_impurity_potential(μ, N, L),
+	title="Combined Impurity Saddle-Point Potential Approximation",
+	titlefont=(13, "times"),
+	xlabel="Y",
+	ylabel="X",
+	guidefont=(12,"times"),
+	tickfont=(9,"times"),
+	legendfontsize=12
+)
+
+# ╔═╡ 0857e99b-a08b-43d7-906d-32107c0977c9
+savefig(impu_surf, "impurity_potential_example.png")
+
+# ╔═╡ 015176cd-e00f-419b-aeae-a4e3db0e10da
+begin
+	gr()
+	surface(
+		gaussian_impurity_potential(
+			μ, N, L;
+			x_pos=20,
+			y_pos=60,
+			σ_x=0.05,
+			σ_y=0.05,
+			imp_amp=0.1
+		)
+	)
+	# gaussian_impurity_potential(μ, N, L)
+end
+
+# ╔═╡ 9492ef77-6124-44f3-baad-039ec1ddd99c
+G_gauss, μ_gass = conductance_gen3(N, L, 0.1, 0.9, 0.5, 200)
+
+# ╔═╡ 5bb0a920-9906-43d9-9c9d-3d9ce44deacf
+begin
+	plot(
+		μ_gass,
+		G_gauss,
+		lab="Vg=0.5",
+		leg=:topleft
+	)
+end
+
+# ╔═╡ 7e2fdc41-a1b5-4a44-8c87-08f15dc60e4b
+begin
+	μ_gaussian = []
+	G_gaussian = []
+	
+	barrier_ens = 0.2:0.1:1.0
+	
+	for b_en in barrier_ens
+		G_loc, μ_loc = conductance_gen3(N, L, 0.1, 0.9, b_en, 200)
+		push!(G_gaussian, G_loc)
+		push!(μ_gaussian, μ_loc)
+	end
+end
+
+# ╔═╡ a1b4a714-88e9-43a9-a594-fbe401039663
+## gaussian ionic impurity model conductance plot
+begin
+	using Plots.PlotMeasures
+	
+	fig_gauss_imp = plot(μ_gaussian[1], G_gaussian[1])
+	
+	for i in 2:length(G_gaussian)
+		plot!(μ_gaussian[i], G_gaussian[i])
+	end
+	
+	plot!(
+		# title & labels
+		title="Gaussian-approximated ionic impurity conductance",
+		xlabel="Potential μ [eV]",
+		ylabel="Conductance [Gₒ = (2e²/h)]",
+		# title & labels geometry
+		titlefont=(14,"times"),
+		guidefont=(12,"times"),
+		tickfont=(12,"times"),
+		# annotations
+		leg=false,
+		# x & y axis
+		yticks=0.0:1.0:10.0,
+		xticks=0.0:0.1:1.0,
+		bottom_margin=5mm
+	)
+end
+
+# ╔═╡ 00fa5126-a4b2-49ec-82df-e09a0d888dca
+savefig(fig_gauss_imp, "gaussian_impurity_conductance.png")
+
+# ╔═╡ bd9b0c3c-4e08-4dae-bab7-64ffff5954ee
+begin
+	sample_impurity = surface(
+		gaussian_impurity_potential(
+			0.5, N, L;
+			x_pos=20,
+			y_pos=50,
+			σ_x=0.1,
+			σ_y=0.1,
+			imp_amp=0.2,
+			xL=1.,
+			yL=1.,
+			gate_amp=0.5
+		),
+		title="Impurity QPC Scattering Region Potential Profile",
+		xlabel="L",
+		ylabel="N",
+		zlabel="E (eV)",
+		titlefonts=(14, "times"),
+		guidefonts=(12, "times"),
+		ticksfonts=(12, "times")
+	)
+end
+
+# ╔═╡ dfc72ded-0c44-4004-a334-31731558ff8b
+savefig(sample_impurity, "sampled_impurity_pot1.png")
+
+# ╔═╡ 8b41d412-dc91-42ef-b119-8420a28c9be9
+begin
+	μ_gaussian2 = []
+	G_gaussian2 = []
+	
+	for b_en in barrier_ens
+		G_loc, μ_loc = conductance_gen4(N, L, 0.1, 0.9, b_en, 300)
+		push!(G_gaussian2, G_loc)
+		push!(μ_gaussian2, μ_loc)
+	end
+end
+
+# ╔═╡ c0ba6c21-5908-49a3-9da0-12fc1db6e6ab
+## gaussian ionic impurity model conductance plot
+begin	
+	fig_gauss2_imp = plot(μ_gaussian2[1], G_gaussian2[1])
+	
+	for i in 2:length(G_gaussian2)
+		plot!(μ_gaussian2[i], G_gaussian2[i])
+	end
+	
+	plot!(
+		# title & labels
+		title="Gaussian-approximated ionic impurity conductance (V2)",
+		xlabel="Potential μ [eV]",
+		ylabel="Conductance [Gₒ = (2e²/h)]",
+		# title & labels geometry
+		titlefont=(14,"times"),
+		guidefont=(12,"times"),
+		tickfont=(12,"times"),
+		# annotations
+		leg=false,
+		# x & y axis
+		yticks=0.0:1.0:10.0,
+		xticks=0.0:0.1:1.0,
+		bottom_margin=5mm
+	)
+end
+
+# ╔═╡ 654e760c-fd53-48c5-9531-3c10d5917664
+savefig(fig_gauss2_imp, "gaussian_impurity_conductance_noisy.png")
+
+# ╔═╡ 844ad86a-e9db-4469-a582-bf352ae8a09d
+begin
+	sample_impurity2 = surface(
+		gaussian_impurity_potential(
+			0.5, N, L;
+			x_pos=20,
+			y_pos=50,
+			σ_x=0.2,
+			σ_y=0.2,
+			imp_amp=0.3,
+			xL=1.,
+			yL=1.,
+			gate_amp=0.5
+		),
+		title="Impurity QPC Scattering Region Potential Profile (V2)",
+		xlabel="L",
+		ylabel="N",
+		zlabel="E (eV)",
+		titlefonts=(14, "times"),
+		guidefonts=(12, "times"),
+		ticksfonts=(12, "times")
+	)
+end
+
+# ╔═╡ 67f63163-bbeb-41d8-ba26-b0d52ec1cf90
+savefig(sample_impurity2, "big_impurity_sample.png")
+
+# ╔═╡ 62382e8b-03e1-4fc6-95fd-b10184c369d4
+begin
+	μ_clean1 = []
+	G_clean1 = []
+	
+	for b_en in barrier_ens
+		G_loc, μ_loc = conductance_gen(N, L, 0.1, 0.9, b_en, 200)
+		push!(G_clean1, G_loc)
+		push!(μ_clean1, μ_loc)
+	end
+end
+
+# ╔═╡ 096918e8-e23a-4951-a531-04428565c60b
+## impurity-free conductance plot
+begin
+	fig_clean_pot = plot(μ_clean1[1], G_clean1[1])
+	
+	for i in 2:length(G_clean1)
+		plot!(μ_clean1[i], G_clean1[i])
+	end
+	
+	plot!(
+		# title & labels
+		title="Impurity-Free conductance",
+		xlabel="Potential μ [eV]",
+		ylabel="Conductance [Gₒ = (2e²/h)]",
+		# title & labels geometry
+		titlefont=(14,"times"),
+		guidefont=(12,"times"),
+		tickfont=(12,"times"),
+		# annotations
+		leg=false,
+		# x & y axis
+		yticks=0.0:1.0:10.0,
+		xticks=0.0:0.1:1.0,
+		bottom_margin=5mm
+	)
+end
+
+# ╔═╡ f1b62b34-0a1e-4889-a30d-a874784a2a3a
+savefig(fig_clean_pot, "impurity-free_conductance.png")
+
+# ╔═╡ d6ef330e-0b64-4a86-9711-d3a4f69eb82b
+begin
+	sample_clean = surface(
+		smooth_potential(0.5, N, L, 1., 1., 0.5),
+		title="Impurity-Free QPC Scattering Region Potential Profile",
+		xlabel="L",
+		ylabel="N",
+		zlabel="E (eV)",
+		titlefonts=(14, "times"),
+		guidefonts=(12, "times"),
+		ticksfonts=(12, "times")
+	)
+end
+
+# ╔═╡ 9a2d34f5-ba42-41f0-a4cb-9aacb5395d92
+savefig(sample_clean, "sampled_impurity-free_pot1.png")
+
+# ╔═╡ 9e995c1f-47e0-441b-b478-5deb057a85c6
+md"""
+__↓ Clean QPC dense conductance simulation ↓__
+"""
+
+# ╔═╡ 50f917b4-906c-11eb-1037-cfbbf1cb3bc0
+# begin
+# 	G_t = []
+# 	μ_t = []
+	
+# 	for b_height in 0.2:0.1:1.0
+# 		G_loc, μ_loc = conductance_gen(N, L, 0.1, 0.9, b_height, 200)
+# 		push!(G_t, G_loc)
+# 		push!(μ_t, μ_loc)
+# 	end
+# end
+
+# ╔═╡ 104741eb-104a-4c05-bf43-9f0e9d3a0863
+md"""
+__↓ Clean QPC dense conductance plot ↓__
+"""
+
+# ╔═╡ 34f22ce4-906d-11eb-28f5-4d84d9fecd6d
+# begin
+# 	barrier_height = 0.3:0.01:1.0
+# 	b1 = "μ = " * string(barrier_height[1])
+# 	fig_clean = plot(μ_t[1], G_t[1], label=b1)
+# 	for i in 2:length(G_t)
+# 		μ_base = "μ = " * string(barrier_height[i])
+# 		plot!(μ_t[i], G_t[i], label=μ_base)
+# 	end
+# 	plot!(
+# 		# title & labels
+# 		title="Clean Simulated Quantised Conductance",
+# 		xlabel="Potential μ",
+# 		ylabel="Conductance (Gₒ)",
+# 		# title & labels geometry
+# 		titlefontsize=14,
+# 		guidefontsize=14,
+# 		tickfontsize=14,
+# 		# annotations
+# 		leg=false,
+# 		# x & y axis
+# 		xticks=0.1:0.1:0.8,
+# 		yticks=0.0:1.0:10.0
+# 	)
+	
+# 	fig_clean
+# end
+
+# ╔═╡ 96452cb8-9071-11eb-191e-434f5df7af07
+# savefig(fig_clean, "dense_clean_quantised_G.png") # uncommment to save plot above
+
+# ╔═╡ 589ecae2-39d4-4570-832d-58365a32f606
+md"""
+__↓ Dirty (impurity) QPC dense conductance simulation ↓__
+"""
+
+# ╔═╡ 971ea8f8-9071-11eb-0d85-b1186f4d3aea
+# begin
+# 	G_im = []
+# 	μ_im = []
+	
+# 	for b_height in 0.3:0.1:1.0
+# 		G_loc, μ_loc = conductance_gen2(N, L, 0.1, 0.9, b_height, 200)
+# 		push!(G_im, G_loc)
+# 		push!(μ_im, μ_loc)
+# 	end
+# end
+
+# ╔═╡ 3cb02428-cd91-4379-a658-daeefc420e57
+md"""
+__↓ Dirty (impurity) QPC dense conductance plot ↓__
+"""
+
+# ╔═╡ f3987e2a-06d4-4f96-86ee-991c395226c8
+# begin
+# 	gr()
+# 	fig_impurity = plot(μ_im[1], G_im[1])
+	
+# 	for i in 2:length(G_im)
+# 		plot!(μ_im[i], G_im[i])
+# 	end
+	
+# 	plot!(
+# 		# title & labels
+# 		title="Impurity Simulated Quantised Conductance",
+# 		xlabel="Potential μ",
+# 		ylabel="Conductance (Gₒ)",
+# 		# title & labels geometry
+# 		titlefontsize=14,
+# 		guidefontsize=14,
+# 		tickfontsize=14,
+# 		# annotations
+# 		leg=false,
+# 		# x & y axis
+# 		yticks=0.0:1.0:10.0,
+# 		xticks=0.0:0.1:1.0
+# 	)
+# 	fig_impurity
+# end
+
+# ╔═╡ 6af5daff-fc93-443e-ae0a-002f7b943e5b
+md"""
+The graphs above, especially the impurity conductance trace, seems too cluttered, this prevents us being able to really distinguish between traces and observe the oscillations in the conductance.
+
+__To rectify this -- plot traces in steps of ``10`` from `G_im`.__
+"""
+
+# ╔═╡ fd1bb926-4ebc-4a7c-aeaf-8c7c11d813a5
+md"""
+__↓ Visually spaced -- dirty (impurity) QPC dense conductance plot ↓__
+"""
+
+# ╔═╡ 36f78314-f54b-4334-85cc-7ebe9424cd17
+# begin
+# 	gr()
+# 	fig_space_impurity = plot(μ_im[1], G_im[1])
+	
+# 	for i in 4:5:length(G_im)
+# 		plot!(μ_im[i], G_im[i])
+# 	end
+	
+# 	plot!(
+# 		# title & labels
+# 		title="Impurity Spaced Simulated Quantised Conductance",
+# 		xlabel="Potential μ",
+# 		ylabel="Conductance (Gₒ)",
+# 		# title & labels geometry
+# 		titlefontsize=14,
+# 		guidefontsize=14,
+# 		tickfontsize=14,
+# 		# annotations
+# 		leg=false,
+# 		# x & y axis
+# 		yticks=0.0:1.0:10.0,
+# 		xticks=0.0:0.1:1.0,
+# 		# plot geometry
+# 	)
+# end
 
 # ╔═╡ f195457c-7dce-11eb-1326-83ed59d18879
 md"""
-## Experimental Impurity Data:
+## Experimental Conductance Data
+
 The data represents a shift in the QPC channel from left to right which is obtained by applying a differential voltage on left and right split gates, here, -0.1 V and 0.1 V respectively.
 Data is seperated into **`clean`** & **`noisy`**.
 
@@ -1167,120 +1493,7 @@ md"""
 ### Data Import:
 """
 
-# ╔═╡ 3fd81744-8d87-11eb-3366-3d51632a9043
-begin
-	G = []
-	energies = range(0.3, 0.6, length=50)
-	for en in energies
-		#V = impurity_potential(en, N, L, 0.0001, 10, 10, 1., 1.)
-		V = smooth_potential(en, N, L, 1., 1., 0.6)
-		push!(G, system_solve(en, V, N, L, en)[1])
-	end
-end
-
-# ╔═╡ 53ddbc9c-8d87-11eb-050e-11c509947dbf
-plot(energies, G, leg=false)
-
-# ╔═╡ 97ea8df4-8f47-11eb-1f43-1771fffdbf0d
-begin
-	G2 = []
-	energies2 = range(0.01, 0.5, length=100)
-	#energies2 = 0:0.0014028056112224449:0.6
-	for en in energies2
-		#V = impurity_potential3(en, N, L, 0.1, 0.3, 0.6, 1., 1.)
-		#V = local_sin_imp(μ, N, L, -0.05, 20, 50, 0.1, 0.1, 0.6, 1., 1.)
-		V = place_impurity(smooth_potential(en, N, L, 1., 1., 0.6), 20, 50, 0.01)
-		push!(G2, system_solve(en, V, N, L, en)[1])
-	end
-end
-
-# ╔═╡ b6128210-8fc8-11eb-0e3d-a11dc7195e78
-surface(
-	place_impurity(
-		smooth_potential(
-			0.4,
-			40, 
-			100,
-			1.,
-			1.,
-			0.6
-		),
-		20,
-		50,
-		0.01
-	)
-)
-
-# ╔═╡ 44e76071-4ced-450f-b815-4ee277570980
-smooth_potential(0.4, N, L, 1., 1., 0.6)
-
-# ╔═╡ a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
-plot(energies2, G2, leg=false)
-
-# ╔═╡ 854b06e2-87fc-11eb-1d4a-058609b638d3
-md"""
-## Aims and Objectives:
-__I want to be able to:__
-1. plot simulated 'clean' conductance of a QPC alongside the experimental results
-   - deduce the errors in the simulated 'clean' results from the experimental ones
-   - introduce compensation term into 'clean' sim to _tune_ results for accuracy
-2. plot simulated 'noisy' conductance of a QPC alongside the experimental results
-   - deduce the errors in the simulated 'noisy' results from the experimental ones
-   - introduce compensation term into 'noisy' sim to _tune_ results for accuracy
-"""
-
-# ╔═╡ 8e92f6f4-8353-11eb-30ca-c3d79597943a
-
-
-# ╔═╡ e63f0386-8353-11eb-0334-3b77fcc24f3a
-md"""
-## Electron Energy in Confined Systems
-
-In a system with in-plane dispersion in the xy-plane, and confinement in the z-axis, as illustrated below:
-
-$(load("./mdsrc/ipd.png"))
-
-the in-plane wavefunctions of an electron: ``\psi_{x,y}`` will solve (IIF it is assumed that the plan is infite) to reflect the current flow properties as:
-
-```math
-\psi_{x,y}(x,y) = \frac{1}{A}\exp[i(k_{x} x + k_{y} y)]
-```
-
-In the restricted dimension, along the z-axis, the wavefunction ``\psi_{z}`` takes the form of a sinusoid when cosidering the confining potential as perfect i.e infinite outside the plane and zero inside the plane gap.
-Further consideration of the boundary problem refines the solution to:
-
-```math
-\psi_{n}(z) = \sqrt{\frac{2}{l_w}}\sin\left(\frac{\pi n z}{l_w}\right)
-```
-
-Observe how the wavefunction in the confined dimension has become discretised in the quantum number ``n``.
-
-We can also find the energy components in the ``x`` and ``y`` dimensions as:
-
-```math
-E_{x} = \frac{\hbar^2 k_{x}^2}{2m}
-```
-```math
-E_{y} = \frac{\hbar^2 k_{y}^2}{2m}
-```
-
-and for the confined dimension:
-
-```math
-E_{z} = E_{n} = \frac{\hbar^2 \pi^2 n^2}{2 m l_w^2}.
-```
-
-This results in a total system (electron) energy given as:
-
-```math
-E = E_{n} + \frac{\hbar^2 | \vec{k}_{x,y} |^2}{2m^*}
-```
-
-in accordance to the effective mass theorem which gives us the electron mass in the material as ``m^*``.
-
-"""
-
-# ╔═╡ f6c12ba2-8d86-11eb-3060-77aa104ab877
+# ╔═╡ 847b4707-45a6-476c-b3e2-855c96a4d564
 
 
 # ╔═╡ 7545065e-72e7-11eb-1db0-3df6683bcbeb
@@ -1385,12 +1598,20 @@ clean_plot = plot(
 )
 
 # ╔═╡ fa5d996e-7dd5-11eb-3010-8935856e0b68
-noisy_plot = plot(noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
-				noisyG[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
-				title="Channel Conductance of a QPC Containing Impurities",
-				xlabel="Split Gate Voltage (V)",
-				ylabel="Channel Conductance G (μS)",
-				leg=false)
+noisy_plot = plot(
+	noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
+	noisyG[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
+	title="Channel Conductance of a QPC Containing Impurities",
+	xlabel="Split Gate Voltage (V)",
+	ylabel="Channel Conductance G (μS)",
+	# title & labels geometry
+	titlefont=(14,"times"),
+	guidefont=(12,"times"),
+	tickfont=(12,"times"),
+	# annotations
+	leg=false,
+	bottom_margin=5mm
+)
 
 # ╔═╡ f7b17256-8331-11eb-1542-0d28cdf6478f
 # scale conductance plots by G_0
@@ -1401,44 +1622,44 @@ begin
 	noisyG_scaled = (noisyG .* 1e-6) ./ G_0
 end;
 
-# ╔═╡ 3988a6f4-8332-11eb-0bbc-61d88181a812
-begin
-clean_plot2 = plot(cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
-				cleanG_scaled[1:(size(cleanG)[1]), 1:(size(cleanG)[2])])
-	plot!(title="Clean Experimental Quantised Conductance",
-		titlefontsize=18,
-		xlabel="Split Gate Voltage (V)",
-		ylabel="Conductance (Gₒ)",
-		guidefontsize=16,
-		tickfontsize=14,
-		yticks=0.0:1.0:10.0,
-		leg=false,
-		legendfontsize=13)
-	savefig(clean_plot2, "clean_exp.svg")
-	@show clean_plot2
-end
+# ╔═╡ ee73b04f-fe55-4eec-99bb-2ef5c45b468e
+clean_plot_scaled = plot(
+	cleanV[1:(size(cleanV)[1]),1:(size(cleanV)[2])],
+	cleanG_scaled[1:(size(cleanG_scaled)[1]), 1:(size(cleanG_scaled)[2])],
+	title="Channel Conductance of a Clean QPC (Scaled)",
+	xlabel="Split Gate Voltage (V)",
+	ylabel="Channel Conductance G [G₀ = (2e²/h)]",
+	# title & labels geometry
+	titlefont=(14,"times"),
+	guidefont=(12,"times"),
+	tickfont=(12,"times"),
+	# annotations
+	leg=false,
+	bottom_margin=5mm
+)
 
-# ╔═╡ 561742b2-8332-11eb-0c5f-d14c9b23709c
-begin
-	noisy_plot2 = plot(
-		noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
-		noisyG_scaled[1:(size(noisyG)[1]), 1:(size(noisyG)[2])],
-		title="Impurity Experimental Quantied Conductance",
-		titlefontsize=18,
-		xlabel="Split Gate Voltage (V)",
-		ylabel="Channel Conductance (Gₒ)",
-		guidefontsize=16,
-		tickfontsize=14,
-		yticks=0.0:1.0:10.0,
-		leg=false,
-		legendfontsize=13
-	)
-	savefig(noisy_plot2, "dirty_exp.svg")
-		@show noisy_plot2
-end
+# ╔═╡ 6cdec916-aa89-4a0d-ba7e-93ed1a09075a
+savefig(clean_plot_scaled, "clean_experimental_scaled.png")
 
-# ╔═╡ 9bb30ee2-b6de-431e-8e7d-3761a2084fe4
+# ╔═╡ 5f7eee43-19a2-4bfa-8d46-0bab82dd7268
+noisy_plot_scaled = plot(
+	noisyV[1:(size(noisyV)[1]), 1:(size(noisyV)[2])],
+	noisyG_scaled[1:(size(noisyG_scaled)[1]), 1:(size(noisyG_scaled)[2])],
+	title="Channel Conductance of a QPC Containing Impurities (Scaled)",
+	xlabel="Split Gate Voltage [V]",
+	ylabel="Channel Conductance [G₀ = (2e²/h)] ",
+	# title & labels geometry
+	titlefont=(14,"times"),
+	guidefont=(12,"times"),
+	tickfont=(12,"times"),
+	# annotations
+	leg=false,
+	bottom_margin=5mm,
+	right_margin=5mm
+)
 
+# ╔═╡ fd233a8d-e7b1-41be-8631-845402e0ecc2
+savefig(noisy_plot_scaled, "noisy_experimental_scaled.png")
 
 # ╔═╡ Cell order:
 # ╟─7ee2fb54-433c-11eb-1f9b-3528ac7148a4
@@ -1464,18 +1685,17 @@ end
 # ╠═06038796-6234-11eb-3dd3-cf25a7095963
 # ╟─d15c21b8-8350-11eb-0a17-916ab9ab4c48
 # ╠═41a9c7cc-6245-11eb-148b-3791b3fb504c
-# ╠═faedfda0-72d7-11eb-0b80-7d63e962468d
+# ╟─faedfda0-72d7-11eb-0b80-7d63e962468d
 # ╠═fce9afc0-624a-11eb-09e2-c38456a1fe35
 # ╠═d03c2ac6-6253-11eb-0483-596dd3d5e5a4
 # ╠═095be506-64e5-11eb-3ac8-6dbf5a7f5f9e
 # ╟─b3fb891c-8d83-11eb-31d8-3fea8e634889
 # ╠═212d911a-7dc3-11eb-11ee-333220a641e5
 # ╠═9ff7af7e-7dc2-11eb-17b8-e7fe576888c4
-# ╠═bba2787c-8db9-11eb-0566-7d3b8f46e43d
-# ╠═a1f94578-8d84-11eb-1de6-03bab5d1e34e
+# ╟─a1f94578-8d84-11eb-1de6-03bab5d1e34e
 # ╠═6b63b052-64eb-11eb-1a62-33262062ece1
 # ╟─deb49ea2-8d85-11eb-34ed-7b71e4b3cef8
-# ╟─2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
+# ╠═2fd2a6c8-6256-11eb-2b61-1deb1e2e4c77
 # ╟─c2f6b348-8d84-11eb-2b07-d585477a2f50
 # ╠═210393f2-65ad-11eb-3dc0-0bcab1b97c73
 # ╠═ce242db8-8d84-11eb-1f4d-532062e2cb6d
@@ -1486,64 +1706,81 @@ end
 # ╠═7186dc7e-8d85-11eb-3429-3bbc1f4ab65b
 # ╟─c3d2dafc-8d85-11eb-1927-0ffa6df786db
 # ╠═cffd655e-8d85-11eb-262c-c35e8d38a7d1
-# ╠═754fd72a-8f2b-11eb-381b-c19ea1fed40a
-# ╟─0c4227d0-9069-11eb-2ffc-9b8d4d9dc3cf
-# ╠═47f47e16-8d87-11eb-2734-fbe36fd94431
-# ╟─5205f976-906a-11eb-329b-c9937537fa31
-# ╠═50f917b4-906c-11eb-1037-cfbbf1cb3bc0
-# ╠═34f22ce4-906d-11eb-28f5-4d84d9fecd6d
-# ╠═96452cb8-9071-11eb-191e-434f5df7af07
-# ╠═971ea8f8-9071-11eb-0d85-b1186f4d3aea
-# ╠═f3987e2a-06d4-4f96-86ee-991c395226c8
-# ╠═f0f515f7-a11b-4ec3-b882-92b934e5d87a
-# ╟─6af5daff-fc93-443e-ae0a-002f7b943e5b
-# ╠═a758ef64-039d-4b6e-ac92-a01e4a41f4ee
-# ╠═36f78314-f54b-4334-85cc-7ebe9424cd17
-# ╟─c6a7a888-8506-442d-9234-ee38bf53cc1d
-# ╠═6108e688-e2e1-4548-96c3-a44080ba3b53
-# ╠═47f94af8-9071-11eb-04c5-2d2fc8cf6035
-# ╠═cfecb1d8-8fc5-11eb-3d49-3f7edba7de29
+# ╠═e125a71d-37df-4f47-bebe-62ea8bccf3e2
+# ╠═a3adb388-be9b-49ec-99c6-537e87c57cee
+# ╟─973c91dd-58e7-4462-a792-85ad18eca925
+# ╟─754fd72a-8f2b-11eb-381b-c19ea1fed40a
+# ╟─f09e2df2-8e37-11eb-3537-ad7491c66146
 # ╟─3875774a-8d87-11eb-321a-0f74a8dc4c73
 # ╠═d5a61ac2-9074-11eb-1948-934b10dcb64c
-# ╠═6b75a64e-9075-11eb-0ade-294cd8ee447a
-# ╠═878ec3c4-9075-11eb-0e07-a3696ce0e839
-# ╠═c53f3960-9075-11eb-32b3-17b4dd27707f
-# ╠═ef295a00-8db7-11eb-1f02-db93c59bd24f
-# ╠═602d89d4-8dbc-11eb-3095-553df225ff7d
-# ╠═3988a6f4-8332-11eb-0bbc-61d88181a812
-# ╠═561742b2-8332-11eb-0c5f-d14c9b23709c
-# ╠═f09e2df2-8e37-11eb-3537-ad7491c66146
-# ╠═91b4b744-8328-11eb-017b-6153bb61cfb2
-# ╠═1c98b9ae-8fca-11eb-1fb4-2f5b5826949b
-# ╠═7bf5e4d2-905e-11eb-324d-674214dcb962
+# ╠═20312b33-55c7-4fb6-8fe6-4aa386fddb61
 # ╠═fd1585d4-8f2f-11eb-21c5-f96dc290073c
-# ╠═0b8b2316-8fc7-11eb-25af-930765cb3f88
-# ╠═fe42a016-9029-11eb-2bfa-2f90a7a38816
-# ╠═ed59c378-9054-11eb-2090-0f8beb23b855
-# ╠═fda8c6a4-9068-11eb-0b67-0b0d9a0da15d
-# ╠═3df5e43a-902b-11eb-1501-4dd67f1bc4b0
-# ╠═55c634ea-8f82-11eb-259a-3b7f881c4d80
+# ╠═5077c151-fa25-4312-9e93-d52e8301e1aa
 # ╠═69e57db4-8f2f-11eb-04fa-052bf0433dea
-# ╠═83d9e9fa-8fc3-11eb-2a8a-f90d743fd9b4
+# ╟─442a3b4f-632d-4a2a-8813-912aa14c3031
+# ╠═2250cb4c-0065-4ce4-8c5a-205392be0909
+# ╠═ef780500-363f-4f76-a59e-e4220afe344d
+# ╠═180d8892-8cd9-4d3f-bf69-8aeac076fc57
+# ╠═753d2cfa-df10-4216-85df-7292ef44e692
+# ╠═0857e99b-a08b-43d7-906d-32107c0977c9
+# ╠═88d9513a-c8ee-451b-ac18-11836c0877bb
+# ╠═047a102e-3936-4269-93fb-d5530aaa495d
+# ╠═e67b1c41-efb8-448a-86a7-9918af1df1f8
+# ╠═bf2b0abe-b2f8-4f88-a82f-22d839b33a27
+# ╠═015176cd-e00f-419b-aeae-a4e3db0e10da
+# ╠═9492ef77-6124-44f3-baad-039ec1ddd99c
+# ╠═5bb0a920-9906-43d9-9c9d-3d9ce44deacf
+# ╟─be491790-b3a8-42f2-8fbf-20d8a3d0c0f0
+# ╠═7e2fdc41-a1b5-4a44-8c87-08f15dc60e4b
+# ╠═bd9b0c3c-4e08-4dae-bab7-64ffff5954ee
+# ╠═dfc72ded-0c44-4004-a334-31731558ff8b
+# ╠═a1b4a714-88e9-43a9-a594-fbe401039663
+# ╠═00fa5126-a4b2-49ec-82df-e09a0d888dca
+# ╟─3738fea4-522d-4160-a96d-c798ff0f4786
+# ╠═8b41d412-dc91-42ef-b119-8420a28c9be9
+# ╠═844ad86a-e9db-4469-a582-bf352ae8a09d
+# ╠═67f63163-bbeb-41d8-ba26-b0d52ec1cf90
+# ╠═c0ba6c21-5908-49a3-9da0-12fc1db6e6ab
+# ╠═654e760c-fd53-48c5-9531-3c10d5917664
+# ╟─6482750b-35b7-42da-94e4-a38e69a67bd6
+# ╠═62382e8b-03e1-4fc6-95fd-b10184c369d4
+# ╠═d6ef330e-0b64-4a86-9711-d3a4f69eb82b
+# ╠═9a2d34f5-ba42-41f0-a4cb-9aacb5395d92
+# ╠═096918e8-e23a-4951-a531-04428565c60b
+# ╠═f1b62b34-0a1e-4889-a30d-a874784a2a3a
+# ╟─57613f4f-9faf-4e9a-9951-8bd675edc72f
+# ╟─0c4227d0-9069-11eb-2ffc-9b8d4d9dc3cf
+# ╟─65d696f4-d49a-41b4-aacd-4ac5be4de1ed
+# ╠═ef295a00-8db7-11eb-1f02-db93c59bd24f
+# ╠═e260588a-240c-49c4-aa16-02fb9c4fb741
+# ╠═7ef77e84-c92c-4a21-9e44-8bcb9989c287
+# ╟─56777301-68ca-4840-b6a5-86f4bb3dc81a
+# ╠═47f47e16-8d87-11eb-2734-fbe36fd94431
+# ╟─9e995c1f-47e0-441b-b478-5deb057a85c6
+# ╠═50f917b4-906c-11eb-1037-cfbbf1cb3bc0
+# ╟─104741eb-104a-4c05-bf43-9f0e9d3a0863
+# ╠═34f22ce4-906d-11eb-28f5-4d84d9fecd6d
+# ╠═96452cb8-9071-11eb-191e-434f5df7af07
+# ╟─589ecae2-39d4-4570-832d-58365a32f606
+# ╠═971ea8f8-9071-11eb-0d85-b1186f4d3aea
+# ╟─3cb02428-cd91-4379-a658-daeefc420e57
+# ╠═f3987e2a-06d4-4f96-86ee-991c395226c8
+# ╟─6af5daff-fc93-443e-ae0a-002f7b943e5b
+# ╟─fd1bb926-4ebc-4a7c-aeaf-8c7c11d813a5
+# ╠═36f78314-f54b-4334-85cc-7ebe9424cd17
 # ╟─f195457c-7dce-11eb-1326-83ed59d18879
 # ╟─552aa3e0-7dd2-11eb-399e-ad5fc208fbc5
 # ╠═d5a18c24-7dd1-11eb-30d4-6dcb0c8c9c4e
-# ╠═5056efdc-7dd6-11eb-21d3-e13768d765d9
-# ╠═fa5d996e-7dd5-11eb-3010-8935856e0b68
-# ╠═3fd81744-8d87-11eb-3366-3d51632a9043
-# ╠═53ddbc9c-8d87-11eb-050e-11c509947dbf
-# ╠═97ea8df4-8f47-11eb-1f43-1771fffdbf0d
-# ╠═b6128210-8fc8-11eb-0e3d-a11dc7195e78
-# ╠═44e76071-4ced-450f-b815-4ee277570980
-# ╠═a22e007a-8f47-11eb-3af2-e9ce0a3eafbe
+# ╟─5056efdc-7dd6-11eb-21d3-e13768d765d9
+# ╟─ee73b04f-fe55-4eec-99bb-2ef5c45b468e
+# ╠═6cdec916-aa89-4a0d-ba7e-93ed1a09075a
+# ╟─fa5d996e-7dd5-11eb-3010-8935856e0b68
+# ╟─5f7eee43-19a2-4bfa-8d46-0bab82dd7268
+# ╠═fd233a8d-e7b1-41be-8631-845402e0ecc2
 # ╠═f7b17256-8331-11eb-1542-0d28cdf6478f
-# ╟─854b06e2-87fc-11eb-1d4a-058609b638d3
-# ╟─8e92f6f4-8353-11eb-30ca-c3d79597943a
-# ╟─e63f0386-8353-11eb-0334-3b77fcc24f3a
-# ╟─f6c12ba2-8d86-11eb-3060-77aa104ab877
+# ╟─847b4707-45a6-476c-b3e2-855c96a4d564
 # ╟─7545065e-72e7-11eb-1db0-3df6683bcbeb
 # ╠═b1c556a8-72e3-11eb-1299-8b52ae0c19b7
 # ╠═5e9936fa-72e5-11eb-078f-bd9e193eda1a
 # ╠═a6f19760-8d81-11eb-2e7e-6dae07c47af9
 # ╠═d8cbc6e4-7dbd-11eb-378e-8bf7a5d244f2
-# ╠═9bb30ee2-b6de-431e-8e7d-3761a2084fe4

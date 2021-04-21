@@ -1,21 +1,22 @@
-# QPC_Investigation
+# Investigating Quantum Transport in Low-Dimensional Systems
 
-## Development notes
+__Clean:__
 
-### Implemented features
+<img src="./results/clean_sim.svg" height="250" align="center"></img>
 
-**Chalker-Coddington Network Model**
+__Dirty:__
 
-- constructor-like `T(μ, N) -> T::T_data` & `S(T, N) -> S::S_data` transfer and scattering matrix-assembling functions
-- scattering matrix summing function: `sum_S(S1::S_data, S2::S_data) -> S::S_data`
-- function to generate final scattering matrix for complete system description: `gen_S_total(V,L) -> S::S_data`
-- QPC potential barrier, profile generating function: `smooth_potential(...) -> V::Array{Float64, 2}`
-- error evaluation function: `error_ϵ(S::S_data, T::T_data)`
-- function to pick out indices of varying wave behaviours from eigen decomp.: `pickoutᵢ(λ_values, mode) -> Array(Int, 1)`
+<img src="./results/dirty_sim.svg" height="250" align="center"></img>
 
-### Buggy features
+Simulating quantum transpoty in a quantum point contact device, using a scattering/NEGF form coupled with a Chalker-Caoddington network to compute the fermionic transmission coefficients across the cronstriction.
 
-- system solving function: `system_solve(μ, V, L, i, opt) -> G::Float64`
-  - output behaviour is **nominal** in: data *size* and *type*
-  - output behaviour is **not nominal** in: data *range* and *scale*
-  
+The potential drop in the scattering region was mapped for the cases where the device was clean (impurity-free) and dirty (containing ionic impurity).
+A hyperbolic paraboloid was used for the clean maapping, whereaas a modified gaussian was used to model potential effects of the immpurity.
+
+__Clean:__
+
+<img src="./results/saddle_potential.png" height="250" align="center"></img>
+
+__Dirty:__
+
+<img src="./results/gaussian_impurity.png" height="250" align="center"></img>

@@ -1,10 +1,9 @@
-# Chalker-Coddington Network Model Data Structures:
-module ccntypes
-export T_data, S_data, Sys_sol
+## CCN model custom types
+module Types
+
+export T_data, S_data
 
 """
-	T_data
-
 **Transfer matrix data type**
 
 Decomposed transfer properties of `T`, including self.
@@ -19,9 +18,7 @@ struct T_data
 end
 
 """
-	S_data
-
-__**Scattering matrix data type**__
+**Scattering matrix data type**
 
 Decomposed S-matrix properties of `S`, including self.
 Used to avoid having to reindex to extract `S` block matrices `s_ij`.
@@ -34,7 +31,9 @@ struct S_data
 	s_22
 end
 
-
+"""
+**Solution parameter type**
+"""
 struct Sys_sol
 	G
 	τ
